@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "vuln-research": {
+      "command": "python",
+      "args": [
+        "E:\\QClawCache\\workspace-agent-c3e0083a\\vuln-research-mcp\\src\\server.py"
+      ],
+      "env": {
+        "LOG_LEVEL": "INFO",
+        "NVD_API_KEY": "YOUR_NVD_API_KEY_HERE"
+      }
+    }
+  }
+}
