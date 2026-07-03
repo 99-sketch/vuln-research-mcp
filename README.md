@@ -2,7 +2,7 @@
 
 面向渗透测试专家的漏洞研究 MCP 服务器。整合多个漏洞数据源，提供统一的漏洞研究接口。
 
-**v1.0.0** — 生产就绪版本。
+**v1.1.0** — 集成 exploitarium PoC 档案库。
 
 ---
 
@@ -22,7 +22,7 @@
 
 ---
 
-## 工具清单（11个）
+## 工具清单（15个）
 
 | 工具 | 功能 | 可用性 | 数据源 |
 |------|------|--------|--------|
@@ -37,6 +37,10 @@
 | `find_nuclei_template` | 查找 Nuclei 模板 | 在线优先 + 本地降级 | GitHub API / 本地模板 |
 | `scan_ports` | 端口扫描 | 需安装 nmap | nmap (带版本检测) |
 | `enumerate_subdomains` | 子域名枚举 | 需安装 sublist3r/amass | sublist3r / amass (带版本检测) |
+| `search_poc_archive` | 搜索 PoC 档案库（exploitarium） | 需先克隆仓库 | 本地索引 |
+| `list_poc_archive` | 列出 PoC 档案库条目 | 需先克隆仓库 | 本地索引 |
+| `clone_poc_archive` | 克隆 exploitarium 仓库 | 需安装 git | GitHub |
+| `update_poc_archive` | 更新 PoC 档案库 | 需安装 git | GitHub |
 
 ---
 
@@ -54,6 +58,7 @@ src/
     nuclei_tool.py        # Nuclei 模板搜索 (在线 + 本地降级)
     scan_tools.py         # 端口扫描 + 子域名枚举 (版本检测)
     network_tools.py      # HTTP 安全头 + DNS + IP 地理定位
+    poc_archive_tool.py   # PoC 档案库搜索 (exploitarium 集成)
   validators/
     __init__.py           # 输入验证：IP/域名/URL/端口/CVE/CWE + 命令注入防护
 ```

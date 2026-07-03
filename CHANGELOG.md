@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0] - 2026-07-03
+
+### Added
+- **PoC 档案库集成 (exploitarium)**：4 个新工具
+  - `search_poc_archive`: 按关键词/CVE-ID 搜索本地 PoC 档案
+  - `list_poc_archive`: 列出档案库全部条目
+  - `clone_poc_archive`: 克隆 exploitarium 仓库到本地
+  - `update_poc_archive`: git pull 更新档案库
+- 新模块 `src/tools/poc_archive_tool.py`：索引 PoC 目录、提取 CVE-ID、返回文件列表和摘要
+- 工具总数：11 -> 15
+
+### Test
+- 74 项 pytest（+6 for PoC archive），全部通过
+
 ## [1.0.0] - 2026-07-03
 
 ### Production Ready
