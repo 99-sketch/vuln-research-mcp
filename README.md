@@ -1,18 +1,20 @@
 # vuln-research-mcp
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-5.0.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-5.1.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/python-3.10_|_3.11_|_3.12-blue.svg" alt="Python">
+  <img src="https://img.shields.io/badge/platform-Win_|_Linux_|_macOS-lightgrey.svg" alt="Platform">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
-  <img src="https://img.shields.io/badge/tools-51-orange.svg" alt="Tools">
-  <img src="https://img.shields.io/badge/security-enterprise-red.svg" alt="Security">
+  <img src="https://img.shields.io/badge/tools-55-orange.svg" alt="Tools">
+  <img src="https://img.shields.io/badge/fingerprints-898-brightgreen.svg" alt="Fingerprints">
+  <img src="https://img.shields.io/badge/security-extreme-red.svg" alt="Security">
   <img src="https://img.shields.io/badge/cnvd-CNVD_ready-red.svg" alt="CNVD">
   <img src="https://img.shields.io/badge/tests-363%20passed-brightgreen.svg" alt="Tests">
 </p>
 
-> **企业级安全平台** — Vulnerability Research MCP Server v5.0 (Enterprise Security Platform)
+> **跨平台企业级安全平台** — Vulnerability Research MCP Server v5.1 (Cross-Platform Enterprise Security)
 >
-> 51 个工具 | 6层纵深防御 | CNVD/CNNVD | 等保2.0 | Neo4j | 离线镜像 | SIEM告警 | 数据库加密
+> 55 个工具 | 7层纵深防御 | 898指纹库 | 跨平台(Win/Linux/Mac) | CNVD/CNNVD | 等保2.0 | 离线镜像 | SIEM
 
 ---
 

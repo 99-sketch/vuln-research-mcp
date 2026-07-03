@@ -1,13 +1,15 @@
 # src/security/__init__.py
-"""v5.0 Enterprise Security Module — 完整安全防护体系
+"""v5.1 Enterprise Security Module — 完整安全防护体系 + 极致输入防御
 
 层级架构:
-  第一层: 输入净化 (input_sanitizer) — 命令注入/SSRF/路径遍历防护
+  第一层: 极致输入净化 (enhanced_sanitizer) — AST级 Shell 解析/Unicode混淆/多层编码检测
   第二层: 数据清洗 (data_sanitizer) — 外部数据上下文净化/间接提示注入防护
-  第三层: 目标策略 (target_policy) — IP白名单/内网防护/扫描限制
-  第四层: 工具守卫 (tool_guard) — RBAC 5级权限/频率限制/哈希校验
-  第五层: 工具审批 (approval) — 人工确认/human-in-the-loop
-  底层支持: 审计日志 (audit) / 密钥管理 (key_manager) / 数据库加密 (db_crypto) / API认证 (api_auth) / 告警 (alerting)
+  第三层: 内网防护 (intranet_guard) — 全RFC 1918阻断/敏感端口告警/扫描范围限制
+  第四层: 目标策略 (target_policy) — IP白名单/内网防护/扫描限制 (已增强)
+  第五层: 工具守卫 (tool_guard) — RBAC 5级权限/频率限制/哈希校验
+  第六层: 工具审批 (approval) — 人工确认/human-in-the-loop
+  第七层: 权限执行 (privilege_enforcer) — Root/Admin 检测阻断/最小权限执行
+  底层支持: 审计日志/密钥管理/数据库加密/API认证/告警
 """
 
 from .input_sanitizer import (
@@ -18,14 +20,29 @@ from .input_sanitizer import (
     sanitize_http_param,
     sanitize_injection_patterns,
 )
+from .enhanced_sanitizer import (
+    ExtremeSanitizer,
+    SanitizationVerdict,
+    SafeCommand,
+    execute_safe_command,
+    get_extreme_sanitizer,
+    extreme_sanitize,
+)
 from .data_sanitizer import (
     DataContextSanitizer,
     SanitizationReport,
     get_data_sanitizer,
 )
+from .intranet_guard import (
+    IntranetGuardPolicy,
+    ScanLimitPolicy,
+    NetworkCategory,
+    SENSITIVE_PORTS,
+    get_intranet_guard,
+    get_scan_limits,
+)
 from .target_policy import (
     TargetPolicy,
-    ScanLimitPolicy,
     create_default_policy,
     create_enterprise_policy,
 )
@@ -72,6 +89,18 @@ from .alerting import (
 )
 
 __all__ = [
+    # v5.1 Enhanced
+    "ExtremeSanitizer",
+    "SanitizationVerdict",
+    "SafeCommand",
+    "execute_safe_command",
+    "get_extreme_sanitizer",
+    "extreme_sanitize",
+    "IntranetGuardPolicy",
+    "NetworkCategory",
+    "SENSITIVE_PORTS",
+    "get_intranet_guard",
+    "get_scan_limits",
     # Input sanitizer
     "SecuritySanitizer",
     "sanitize_command_arg",
@@ -83,11 +112,12 @@ __all__ = [
     "DataContextSanitizer",
     "SanitizationReport",
     "get_data_sanitizer",
-    # Target policy
+    # Target policy (legacy)
     "TargetPolicy",
-    "ScanLimitPolicy",
     "create_default_policy",
     "create_enterprise_policy",
+    # Scan limits (enhanced)
+    "ScanLimitPolicy",
     # Tool guard
     "ToolRiskLevel",
     "ToolGuard",

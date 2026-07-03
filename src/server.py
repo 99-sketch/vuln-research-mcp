@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
 """
-Vulnerability Research MCP Server v5.0.0 — Enterprise Security Platform
+Vulnerability Research MCP Server v5.1.0 — Cross-Platform Enterprise Security Platform
 Penetration Testing Infrastructure Component
 
-v5.0 Architecture (Layered):
+v5.1 Architecture (Layered):
   gateway/       多协议接入 (MCP + REST API + WebSocket + CLI) + API认证
-  security/      企业安全体系 (输入净化/数据清洗/目标策略/工具RBAC/人工审批/
-                 审计日志/密钥管理/数据库加密/API认证/告警系统)
+  security/      企业安全体系 (AST级输入净化/数据清洗/内网全阻断/目标策略/
+                 工具RBAC/人工审批/权限执行/审计日志/密钥管理/数据库加密/
+                 API认证/告警系统)
+  platform/      跨平台抽象层 (Windows/Linux/macOS 工具管理 + 降级方案)
   compliance/    合规检查 (漏洞修复验证/基线合规/等保2.0)
-  graph/         Neo4j 知识图谱 (大规模资产图谱 + 攻击路径分析)
+  graph/         Neo4j + NetworkX 知识图谱 (攻击路径分析)
   intel/         情报层 (MITRE ATT&CK + CNVD/CNNVD + 离线镜像)
   bus/           事件总线 (Pub/Sub)
   orchestrator/  流水线编排 + 任务调度
-  correlator/    资产-漏洞关联引擎
+  correlator/    资产-漏洞关联引擎 (550+ 产品指纹库)
   reporting/     专业渗透测试报告
   db/            SQLite 持久化 (Project/Asset/Finding/Evidence/Timeline/Report) + AES加密
   models/        统一漏洞数据模型 (UnifiedVulnerability -> STIX 2.1 / SARIF)
-  tools/         39+ 工具 (CVE/CVSS/CWE/Exploit/Nuclei/Network/Scan/ThreatIntel/CNVD/CPE/Graph/Report/Scanner)
+  tools/         55+ 工具 (CVE/CVSS/CWE/Exploit/Nuclei/Network/Scan/ThreatIntel/CNVD/CPE/Graph/Report/Scanner)
   core/          基础设施 (AsyncSubProcess, CircuitBreaker, Cache, KnowledgeGraph, Session)
   workflow/      DAG 工作流引擎 + 预设工作流 + 导出
   watchdog/      CISA KEV 轮询告警
@@ -105,7 +107,14 @@ from src.compliance.fix_verifier import FixVerifier, FixStatus, FixResult, get_f
 from src.compliance.baseline_checker import BaselineChecker, ComplianceReport, get_baseline_checker
 from src.graph.neo4j_adapter import Neo4jAdapter, get_neo4j_adapter
 
-__version__ = "5.0.0"
+# v5.1 Enhanced Security & Platform
+from src.security.enhanced_sanitizer import ExtremeSanitizer, SanitizationVerdict, get_extreme_sanitizer, SafeCommand, execute_safe_command
+from src.security.intranet_guard import IntranetGuardPolicy, get_intranet_guard, get_scan_limits
+from src.security.privilege_enforcer import PrivilegeEnforcer, get_privilege_enforcer
+from src.platform.tool_manager import ToolManager, get_tool_manager, Platform as ToolPlatform
+from src.correlator.fingerprint_loader import FingerprintLoader, get_fingerprint_loader
+
+__version__ = "5.1.0"
 
 # ---------- State ----------
 
@@ -141,6 +150,13 @@ _offline_mirror: Optional[OfflineMirror] = None
 _fix_verifier: Optional[FixVerifier] = None
 _baseline_checker: Optional[BaselineChecker] = None
 _neo4j: Optional[Neo4jAdapter] = None
+
+# v5.1 Enhanced
+_extreme_sanitizer: Optional[ExtremeSanitizer] = None
+_intranet_guard: Optional[IntranetGuardPolicy] = None
+_privilege_enforcer: Optional[PrivilegeEnforcer] = None
+_tool_manager: Optional[ToolManager] = None
+_fingerprint_loader: Optional[FingerprintLoader] = None
 
 
 def _register_all_tools():
@@ -896,6 +912,61 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                         _audit.log_tool_call(name, arguments, result="denied", reason=f"SSRF: {reason}")
                     return [TextContent(type="text", text=json.dumps({"error": f"SSRF blocked: {reason}"}, ensure_ascii=False))]
 
+    # --- v5.1 Security Layer 3: Intranet Guard (full RFC 1918 + cloud metadata blocking) ---
+    if _intranet_guard and arguments and isinstance(arguments, dict):
+        target = arguments.get("target") or arguments.get("domain") or arguments.get("ip") or arguments.get("url") or arguments.get("host")
+        if target and name in ("scan_ports", "enumerate_subdomains", "generate_nuclei_command",
+                                "check_http_headers", "execute_scanner", "nmap_to_assets",
+                                "query_dns", "geolocate_ip"):
+            allowed, reason, category = _intranet_guard.check_target(str(target))
+            if not allowed:
+                logger.warning(f"Intranet guard blocked: {target} - {reason} ({category})")
+                if _audit:
+                    _audit.log_tool_call(name, arguments, result="denied", reason=f"intranet_guard: {reason}")
+                if _alert_mgr:
+                    _alert_mgr.send_alert(AlertSeverity.ERROR, f"Intranet guard: {name}",
+                                           f"Tool '{name}' blocked on target {target}: {reason}",
+                                           tags={"target": str(target), "category": category, "tool": name})
+                return [TextContent(type="text", text=json.dumps({"error": f"Intranet scan blocked: {reason}"}, ensure_ascii=False))]
+
+    # --- v5.1 Security: Extreme input sanitization (AST-level) ---
+    if _extreme_sanitizer and arguments and isinstance(arguments, dict):
+        for key, value in arguments.items():
+            if isinstance(value, str) and value:
+                try:
+                    if key in ("target", "ip", "host", "domain"):
+                        verdict = _extreme_sanitizer.sanitize_target(value)
+                    elif key in ("cve", "cve_id"):
+                        verdict = _extreme_sanitizer.sanitize_cve_id(value)
+                    elif key in ("ports", "port_range"):
+                        verdict = _extreme_sanitizer.sanitize_port_list(value)
+                    elif key in ("keyword", "query", "search"):
+                        verdict = _extreme_sanitizer.sanitize_search_query(value)
+                    elif key in ("url", "endpoint"):
+                        verdict = _extreme_sanitizer.sanitize_http_url(value)
+                    elif key in ("path", "file_path"):
+                        verdict = _extreme_sanitizer.sanitize_file_path(value)
+                    else:
+                        verdict = _extreme_sanitizer.sanitize_command_arg(value, allow_spaces=True, allow_special=True)
+
+                    if not verdict.passed:
+                        logger.warning(f"Input sanitization failed: {key}={value[:50]} - {verdict.reason}")
+                        if _audit:
+                            _audit.log_tool_call(name, arguments, result="denied", reason=f"input_sanitization: {verdict.reason}")
+                        return [TextContent(type="text", text=json.dumps(
+                            {"error": f"Input rejected: {verdict.reason}", "risk": verdict.risk_level},
+                            ensure_ascii=False))]
+
+                    # Use cleaned value
+                    if verdict.cleaned_value != value:
+                        arguments[key] = verdict.cleaned_value
+                        if verdict.unicode_attacks:
+                            logger.warning(f"Unicode attacks sanitized in {key}: {verdict.unicode_attacks}")
+                except Exception as e:
+                    logger.warning(f"Sanitization error for {key}: {e}")
+                    return [TextContent(type="text", text=json.dumps(
+                        {"error": f"Input validation failed: {str(e)}"}, ensure_ascii=False))]
+
     registry = get_registry()
     tool_def = registry.resolve(name)
     if not tool_def:
@@ -939,6 +1010,7 @@ async def _init():
     global _approval_mgr, _data_sanitizer, _db_crypto, _api_auth, _alert_mgr  # v5.0 Security
     global _cnvd_client, _cnnvd_client, _cve_cn_mapper, _offline_mirror  # v5.0 Intel
     global _fix_verifier, _baseline_checker, _neo4j  # v5.0 Compliance / Graph
+    global _extreme_sanitizer, _intranet_guard, _privilege_enforcer, _tool_manager, _fingerprint_loader  # v5.1
 
     _config = load_config()
     setup_logging(level=_config.server.log_level, fmt=_config.server.log_format)
@@ -1062,6 +1134,37 @@ async def _init():
         logger.info(f"Neo4j: Connected ({stats.get('total_nodes', 0)} nodes, {stats.get('total_edges', 0)} edges)")
     else:
         logger.info("Neo4j: Not available — using NetworkX fallback")
+
+    # v5.1 Enhanced Security — Privilege enforcement (runs first, blocks root/admin)
+    _privilege_enforcer = get_privilege_enforcer()
+    try:
+        priv_check = _privilege_enforcer.enforce()
+        logger.info(f"Security v5.1: Running as {priv_check.username} ({priv_check.level.name})")
+    except RuntimeError:
+        logger.critical("Security v5.1: Root/Admin execution blocked")
+        raise
+
+    # v5.1 Enhanced Security — Extreme input sanitizer (AST-level)
+    _extreme_sanitizer = get_extreme_sanitizer()
+    logger.info("Security v5.1: ExtremeSanitizer (AST-level shell injection + Unicode defense)")
+
+    # v5.1 Enhanced Security — Intranet guard (full RFC 1918 blocking)
+    _intranet_guard = get_intranet_guard()
+    _scan_limits = get_scan_limits()
+    logger.info("Security v5.1: IntranetGuard (RFC 1918 + cloud metadata blocking)")
+
+    # v5.1 Platform — Cross-platform tool manager
+    _tool_manager = get_tool_manager()
+    health = _tool_manager.health_report()
+    logger.info(f"Platform v5.1: {health['tools_available']}/{health['tools_total']} tools available "
+                f"({health['critical_available']}/{health['critical_total']} critical) "
+                f"on {health['platform']}")
+
+    # v5.1 Correlator — Dynamic fingerprint loader (550+ products)
+    _fingerprint_loader = get_fingerprint_loader()
+    _fingerprint_loader.load_all()
+    logger.info(f"Correlator v5.1: {_fingerprint_loader.total_banner_patterns} banner patterns, "
+                f"{_fingerprint_loader.total_categories} categories loaded")
 
     # Health check
     _health = await startup_health_check()
