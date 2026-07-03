@@ -1,5 +1,85 @@
 # Changelog
 
+## v4.0.0 (2026-07-03) — 渗透测试工具链基础设施级组件
+
+### 新增基础设施模块 (7)
+
+- **EventBus** (`src/bus/`): 全局单例 Pub/Sub 消息骨干。支持同步/异步处理器、通配符订阅 (`vuln.*`)、事件历史记录、优先级级别
+- **SQLite 持久层** (`src/db/`): WAL 模式数据库，7 张表 (projects, assets, scans, findings, evidences, timeline, reports)。外键约束、索引、线程安全连接、完整 CRUD
+- **资产-漏洞关联引擎** (`src/correlator/`): Banner 正则解析 → CPE 产品匹配 → 本地已知漏洞表 (20+ 产品版本) → NVD API 查询。28 个产品 CPE 映射
+- **YAML 管道编排器** (`src/orchestrator/`): DAG 并行管道执行，`$context.*` 变量解析，重试逻辑，on_failure 策略。3 个预设管道 (full_recon, vuln_deep_dive, tech_stack_audit)
+- **任务调度器** (`src/orchestrator/`): 进程内 cron 风格调度，无外部依赖
+- **MITRE ATT&CK 映射器** (`src/intel/`): 10 个核心技术 + CWE→Technique 映射 + 关键词检测 + ATT&CK Navigator 层 JSON 生成
+- **专业渗透测试报告生成器** (`src/reporting/`): Markdown/JSON 格式，含执行摘要、发现矩阵、ATT&CK 映射、修复路线图、CVE 交叉引用
+
+### 新增工具 (10)
+
+- `parse_nmap_xml`: Nmap XML 解析 → 结构化 Asset 对象入库
+- `generate_nuclei_cmd`: Nuclei CLI 扫描命令生成器
+- `search_metasploit`: Metasploit 模块搜索
+- `search_sploit`: searchsploit 本地 Exploit-DB 搜索
+- `attack_technique`: MITRE ATT&CK 技术详情查询
+- `map_to_attack`: 发现 → ATT&CK 战术/技术/缓解映射
+- `attack_navigator`: ATT&CK Navigator 层 JSON 生成
+- `run_pipeline`: YAML 管道执行
+- `list_pipelines`: YAML 管道列表
+- `pentest_report`: 专业渗透测试报告生成
+
+### 新增功能
+
+- REST API 网关 (`src/gateway/rest_api.py`): FastAPI 应用，20+ 端点 + WebSocket + SSE 事件流。可选依赖，优雅降级
+- CLI 管道模式: `--pipeline` + `--context`
+- CLI API 模式: `--api --api-port 8000`
+- 3 个 YAML 管道定义 (`data/pipelines/`)
+- 扫描器工具集成: Nmap XML 解析器、Nuclei 命令生成器、Metasploit/SearchSploit 封装
+- `$context.*` 变量系统用于管道间状态传递
+
+### 变更
+
+- `server.py`: 工具数 29 → 39
+- `pyproject.toml`: 新增依赖 `networkx>=3.0`, `rich>=13.0`, `fastapi>=0.100.0`, `uvicorn>=0.23.0`, `pydantic>=2.0`
+- `.gitignore`: 新增 `data/*.db`, `reports/`, `*.spec`
+- 版本号: 3.0.0 → 4.0.0
+
+### 工具总数
+
+39 工具 / 4 工作流 / 3 YAML 管道
+
+---
+
+## v3.0.0 (2026-07-03) — Knowledge Graph Edition
+
+### 新增模块
+
+- **知识图谱** (`src/core/knowledge_graph.py`): BFS 遍历、邻居查询、文本搜索、pickle 持久化
+- **会话状态管理** (`src/core/session_state.py`): 多会话隔离 + TTL 过期
+- **工作流引擎** (`src/workflow/`): DAG 并行执行 + 优雅降级。4 个预设工作流 (quick_assess, full_pentest_prep, vuln_deep_dive, tech_stack_audit)
+- **报告导出** (`src/workflow/export.py`): STIX 2.1, SARIF, PDF 多格式
+- **Rich CLI** (`src/gateway/cli.py`): 交互式命令行。16 个快捷命令，智能参数解析，Rich Table 渲染
+- **Watchdog 监控** (`src/watchdog/`): CISA KEV 轮询 + 规则告警
+- **插件 SDK** (`src/plugins/`): DataSourcePlugin 抽象基类 + 插件管理器
+- **统一漏洞模型** (`src/models/vulnerability.py`): UnifiedVulnerability + STIX 2.1/SARIF 序列化
+
+### 新增工具 (9)
+
+- `cpe_lookup`: 产品指纹 → CPE 匹配
+- `service_fingerprint`: Banner 文本 → 服务/版本提取
+- `graph_traverse`: 知识图谱 BFS 遍历 (CVE→CWE→Exploit→Actor)
+- `graph_neighbors`: 知识图谱节点邻居查询
+- `graph_search`: 知识图谱文本搜索
+- `graph_stats`: 知识图谱统计
+- `generate_report`: 多格式安全报告 (STIX 2.1/SARIF/Markdown/JSON)
+- `run_workflow`: 预设工作流执行
+- `list_workflows`: 工作流列表
+
+### 变更
+
+- `server.py`: 工具数 20 → 29
+- CLI 交互模式: 支持直接工具调用 + 快捷命令
+- 版本号: 2.0.0 → 3.0.0
+
+---
+
 ## v2.0.0 (2026-07-03) — Production Stable
 
 ### Breaking Changes
