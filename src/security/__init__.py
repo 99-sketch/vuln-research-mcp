@@ -1,14 +1,16 @@
 # src/security/__init__.py
-"""v5.1 Enterprise Security Module — 完整安全防护体系 + 极致输入防御
+"""v5.3 Enterprise Security Module — 完整安全防护体系 + 极致输入防御 + RBAC + 目标授权
 
 层级架构:
-  第一层: 极致输入净化 (enhanced_sanitizer) — AST级 Shell 解析/Unicode混淆/多层编码检测
-  第二层: 数据清洗 (data_sanitizer) — 外部数据上下文净化/间接提示注入防护
-  第三层: 内网防护 (intranet_guard) — 全RFC 1918阻断/敏感端口告警/扫描范围限制
-  第四层: 目标策略 (target_policy) — IP白名单/内网防护/扫描限制 (已增强)
-  第五层: 工具守卫 (tool_guard) — RBAC 5级权限/频率限制/哈希校验
-  第六层: 工具审批 (approval) — 人工确认/human-in-the-loop
-  第七层: 权限执行 (privilege_enforcer) — Root/Admin 检测阻断/最小权限执行
+  第零层: 授权声明 (target_authorization) — 启动确定认授权 + 目标白名单校验
+  第一层: RBAC权限 (rbac) — 4角色/5等级工具权限控制
+  第二层: 极致输入净化 (enhanced_sanitizer) — AST级 Shell 解析/Unicode混淆/多层编码检测
+  第三层: 数据清洗 (data_sanitizer) — 外部数据上下文净化/间接提示注入防护
+  第四层: 内网防护 (intranet_guard) — 全RFC 1918阻断/敏感端口告警/扫描范围限制
+  第五层: 目标策略 (target_policy) — IP白名单/内网防护/扫描限制 (已增强)
+  第六层: 工具守卫 (tool_guard) — 5级权限/频率限制/哈希校验
+  第七层: 工具审批 (approval) — 人工确认/human-in-the-loop
+  第八层: 权限执行 (privilege_enforcer) — Root/Admin 检测阻断/最小权限执行
   底层支持: 审计日志/密钥管理/数据库加密/API认证/告警
 """
 
@@ -87,8 +89,46 @@ from .alerting import (
     EmailChannel,
     SyslogChannel,
 )
+from .rbac import (
+    RBACManager,
+    RBACConfig,
+    Role,
+    RiskLevel,
+    AccessDecision,
+    TOOL_RISK_MAP as RBAC_TOOL_RISK_MAP,
+    get_rbac,
+    init_rbac,
+    check_authorization_confirmed,
+    confirm_authorization,
+    AUTHORIZATION_DISCLAIMER,
+)
+from .target_authorization import (
+    TargetAuthorizer,
+    AuthzConfig,
+    AuthzDecision,
+    get_authorizer,
+    init_authorizer,
+)
 
 __all__ = [
+    # v5.3 RBAC
+    "RBACManager",
+    "RBACConfig",
+    "Role",
+    "RiskLevel",
+    "AccessDecision",
+    "RBAC_TOOL_RISK_MAP",
+    "get_rbac",
+    "init_rbac",
+    "check_authorization_confirmed",
+    "confirm_authorization",
+    "AUTHORIZATION_DISCLAIMER",
+    # v5.3 Target Authorization
+    "TargetAuthorizer",
+    "AuthzConfig",
+    "AuthzDecision",
+    "get_authorizer",
+    "init_authorizer",
     # v5.1 Enhanced
     "ExtremeSanitizer",
     "SanitizationVerdict",

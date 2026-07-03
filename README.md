@@ -1,22 +1,24 @@
 # vuln-research-mcp
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-5.2.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-5.3.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/python-3.10_|_3.11_|_3.12-blue.svg" alt="Python">
   <img src="https://img.shields.io/badge/platform-Win_|_Linux_|_macOS-lightgrey.svg" alt="Platform">
   <img src="https://img.shields.io/badge/docker-ready-blue.svg" alt="Docker">
   <img src="https://img.shields.io/badge/web_ui-ready-green.svg" alt="Web UI">
+  <img src="https://img.shields.io/badge/distributed-redis-orange.svg" alt="Distributed">
+  <img src="https://img.shields.io/badge/rbac-4_roles-red.svg" alt="RBAC">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/tools-55-orange.svg" alt="Tools">
   <img src="https://img.shields.io/badge/fingerprints-898-brightgreen.svg" alt="Fingerprints">
-  <img src="https://img.shields.io/badge/security-extreme-red.svg" alt="Security">
+  <img src="https://img.shields.io/badge/security-enterprise_grade-red.svg" alt="Security">
   <img src="https://img.shields.io/badge/cnvd-CNVD_ready-red.svg" alt="CNVD">
   <img src="https://img.shields.io/badge/tests-363%20passed-brightgreen.svg" alt="Tests">
 </p>
 
-> **小白也能用的企业级安全平台** — Vuln-Research-MCP v5.2 (Zero-Command-Line)
+> **企业级分布式安全平台** — Vuln-Research-MCP v5.3 (Enterprise Governance)
 >
-> Web 界面 · Docker 一键部署 · 交互式向导 · 55 个工具 · 7 层纵深防御 · 898 指纹库 · 3 平台兼容
+> 4 角色 RBAC · 目标白名单 · 分布式多节点 · Web 界面 · Docker · 55 工具 · 8 层防御 · 898 指纹
 
 ---
 

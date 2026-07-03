@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vuln-research-mcp"
-version = "5.2.0"
-description = "Vulnerability Research MCP — 企业级安全平台 (Web UI + Docker一键部署 + 零命令行操作)"
+version = "5.3.0"
+description = "Vulnerability Research MCP — 企业级分布式安全平台 (RBAC + 目标授权 + 分布式 + Docker + Web UI)"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"

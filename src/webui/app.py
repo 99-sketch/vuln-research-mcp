@@ -216,9 +216,9 @@ def main():
     import uvicorn
     print("\n" + "="*52)
     print("  Vuln-Research-MCP Web Dashboard v5.2")
-    print("  打开浏览器访问: http://localhost:8080")
+    print("  打开浏览器访问: http://localhost:7879")
     print("="*52 + "\n")
-    uvicorn.run(app, host="0.0.0.0", port=8080, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=7879, log_level="info")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 # Vuln-Research-MCP v5.2 启动脚本
-# 同时启动 Web UI (8080) 和 REST API (8765)
+# 同时启动 Web UI (7879) 和 REST API (8765)
 # =============================================================================
 
 set -e
@@ -11,7 +11,7 @@ echo "  Vuln-Research-MCP v5.2"
 echo "  Enterprise Security Platform"
 echo "============================================"
 echo ""
-echo "  Web UI:   http://localhost:8080"
+echo "  Web UI:   http://localhost:7879"
 echo "  REST API: http://localhost:8765/docs"
 echo "  MCP:      stdio (via docker exec)"
 echo ""
@@ -23,7 +23,7 @@ API_PID=$!
 sleep 2
 
 # 启动 Web UI (前台)
-echo "[*] Starting Web UI on :8080..."
+echo "[*] Starting Web UI on :7879..."
 python3 -m src.webui.app
 
 # 如果 Web UI 退出, 清理 API 进程

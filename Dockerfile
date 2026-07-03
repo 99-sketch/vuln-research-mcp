@@ -54,13 +54,13 @@ ENV CACHE_ENABLED="true"
 ENV PYTHONUNBUFFERED=1
 
 # ----- 暴露端口 -----
-# 8080: Web UI
+# 7879: Web UI
 # 8765: REST API
-EXPOSE 8080 8765
+EXPOSE 7879 8765
 
 # ----- 健康检查 -----
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=30s \
-    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" || exit 1
+    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:7879/health')" || exit 1
 
 # ----- 启动入口: Web UI + REST API 双服务 -----
 COPY entrypoint.sh /app/entrypoint.sh

@@ -8,7 +8,7 @@
 #   docker compose logs -f web    # 查看 Web 界面日志
 #
 # 访问地址:
-#   Web 界面:  http://localhost:8080
+#   Web 界面:  http://localhost:7879
 #   REST API:  http://localhost:8765/docs
 #   MCP 服务:  stdio (通过 Docker exec)
 #   Neo4j:     http://localhost:7474 (可选, 需要知识图谱功能时启用)
@@ -25,13 +25,13 @@ services:
     container_name: vuln-research-web
     restart: unless-stopped
     ports:
-      - "8080:8080"    # Web 界面
+      - "7879:7879"    # Web 界面
       - "8765:8765"    # REST API
     environment:
       - NVD_API_KEY=${NVD_API_KEY:-}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - CACHE_ENABLED=true
-      - CORS_ORIGINS=http://localhost:8080
+      - CORS_ORIGINS=http://localhost:7879
       # 钉钉告警 (可选)
       - DINGTALK_WEBHOOK=${DINGTALK_WEBHOOK:-}
       # 邮箱告警 (可选)
@@ -52,7 +52,7 @@ services:
       # 本地配置文件 (可选)
       - ./config.yaml:/app/config.yaml:ro
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:7879/health')"]
       interval: 30s
       timeout: 10s
       retries: 3

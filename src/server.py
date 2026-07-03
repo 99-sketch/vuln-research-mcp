@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Vulnerability Research MCP Server v5.1.0 — Cross-Platform Enterprise Security Platform
+Vulnerability Research MCP Server v5.3.0 — Enterprise-Grade Distributed Security Platform
 Penetration Testing Infrastructure Component
 
-v5.1 Architecture (Layered):
+v5.3 Architecture (Layered):
   gateway/       多协议接入 (MCP + REST API + WebSocket + CLI) + API认证
-  security/      企业安全体系 (AST级输入净化/数据清洗/内网全阻断/目标策略/
-                 工具RBAC/人工审批/权限执行/审计日志/密钥管理/数据库加密/
-                 API认证/告警系统)
+  security/      企业安全体系 (RBAC角色权限/目标白名单授权/AST级输入净化/
+                 数据清洗/内网全阻断/命名空间隔离/工具分级/人工审批/
+                 权限执行/审计日志/密钥管理/数据库加密/API认证/告警系统)
   platform/      跨平台抽象层 (Windows/Linux/macOS 工具管理 + 降级方案)
   compliance/    合规检查 (漏洞修复验证/基线合规/等保2.0)
   graph/         Neo4j + NetworkX 知识图谱 (攻击路径分析)
@@ -16,10 +16,10 @@ v5.1 Architecture (Layered):
   orchestrator/  流水线编排 + 任务调度
   correlator/    资产-漏洞关联引擎 (550+ 产品指纹库)
   reporting/     专业渗透测试报告
-  db/            SQLite 持久化 (Project/Asset/Finding/Evidence/Timeline/Report) + AES加密
+  db/            持久化 (SQLite/Redis/PostgreSQL) + AES加密
   models/        统一漏洞数据模型 (UnifiedVulnerability -> STIX 2.1 / SARIF)
   tools/         55+ 工具 (CVE/CVSS/CWE/Exploit/Nuclei/Network/Scan/ThreatIntel/CNVD/CPE/Graph/Report/Scanner)
-  core/          基础设施 (AsyncSubProcess, CircuitBreaker, Cache, KnowledgeGraph, Session)
+  core/          基础设施 (分布式任务队列/命名空间隔离/AsyncSubProcess/CircuitBreaker/Cache/KnowledgeGraph/Session)
   workflow/      DAG 工作流引擎 + 预设工作流 + 导出
   watchdog/      CISA KEV 轮询告警
   plugins/       社区数据源 SDK
@@ -114,7 +114,17 @@ from src.security.privilege_enforcer import PrivilegeEnforcer, get_privilege_enf
 from src.platform.tool_manager import ToolManager, get_tool_manager, Platform as ToolPlatform
 from src.correlator.fingerprint_loader import FingerprintLoader, get_fingerprint_loader
 
-__version__ = "5.1.0"
+# v5.3 Enterprise Governance — RBAC + Namespace + Target Auth + Distributed
+from src.security.rbac import (
+    RBACManager, RBACConfig, Role, RiskLevel,
+    get_rbac, init_rbac, check_authorization_confirmed, confirm_authorization,
+    AUTHORIZATION_DISCLAIMER,
+)
+from src.core.tool_namespace import ToolNamespace, get_namespace, init_namespace
+from src.security.target_authorization import TargetAuthorizer, AuthzConfig, get_authorizer, init_authorizer
+from src.core.distributed import DistributedManager, DistributedConfig, get_distributed, init_distributed
+
+__version__ = "5.3.0"
 
 # ---------- State ----------
 
@@ -157,6 +167,12 @@ _intranet_guard: Optional[IntranetGuardPolicy] = None
 _privilege_enforcer: Optional[PrivilegeEnforcer] = None
 _tool_manager: Optional[ToolManager] = None
 _fingerprint_loader: Optional[FingerprintLoader] = None
+
+# v5.3 Governance & Distributed
+_rbac_mgr: Optional[RBACManager] = None
+_namespace_mgr: Optional[ToolNamespace] = None
+_target_authz: Optional[TargetAuthorizer] = None
+_distributed_mgr: Optional[DistributedManager] = None
 
 
 def _register_all_tools():
@@ -882,6 +898,59 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                                        f"Tool '{name}' blocked: {reason}")
             return [TextContent(type="text", text=json.dumps({"error": f"Tool blocked: {reason}"}, ensure_ascii=False))]
 
+    # --- v5.3 Governance: RBAC role-based access check ---
+    if _rbac_mgr and _rbac_mgr.config.enforce:
+        # 解析工具名（去除 namespace 前缀）
+        internal_name = _namespace_mgr.resolve(name) if _namespace_mgr else name
+        if not internal_name:
+            internal_name = name
+
+        access = _rbac_mgr.check_access(internal_name)
+        if not access.allowed:
+            logger.warning(f"RBAC denied: {internal_name} — {access.reason}")
+            if _audit:
+                _audit.log_tool_call(internal_name, arguments, result="denied", reason=f"rbac: {access.reason}")
+            if _alert_mgr:
+                _alert_mgr.send_alert(AlertSeverity.WARNING, f"RBAC denied: {internal_name}",
+                                       f"Role '{_rbac_mgr.current_role.name}' attempted {internal_name}. {access.reason}")
+            return [TextContent(type="text", text=json.dumps({
+                "error": f"权限不足: {access.reason}",
+                "current_role": _rbac_mgr.current_role.name,
+                "required_level": access.required_level.name,
+                "user_max_level": access.user_max_level.name,
+            }, ensure_ascii=False))]
+
+        # Role-specific tool disable
+        if _rbac_mgr.is_tool_disabled(internal_name):
+            logger.warning(f"RBAC disabled: {internal_name} for role {_rbac_mgr.current_role.name}")
+            return [TextContent(type="text", text=json.dumps({
+                "error": f"Tool '{internal_name}' disabled for role '{_rbac_mgr.current_role.name}'"
+            }, ensure_ascii=False))]
+
+    # --- v5.3 Governance: Target Authorization whitelist check ---
+    if _target_authz and _target_authz.config.enabled and arguments and isinstance(arguments, dict):
+        target = arguments.get("target") or arguments.get("domain") or arguments.get("ip") or arguments.get("url")
+        if target and name not in ("search_cve", "get_cve_details", "cvss_calculator", "cwe_mapping",
+                                    "cve_lookup", "cve_batch", "kev_check", "kev_latest",
+                                    "epss_score", "exploit_search", "exploit_info",
+                                    "cnvd_search", "cnvd_detail", "cnnvd_search", "cve_to_cnvd",
+                                    "offline_mirror_status", "offline_mirror_query",
+                                    "knowledge_graph", "graph_query", "graph_traverse", "graph_stats",
+                                    "mitre_attack", "mitre_tactic", "threat_intel",
+                                    "report_generate", "audit_export", "compliance_check",
+                                    "project_list", "finding_list", "timeline_list",
+                                    "poc_search", "search_poc_archive", "list_poc_archive"):
+            authz_decision = _target_authz.check(str(target))
+            if not authz_decision.allowed:
+                logger.warning(f"Target authz denied: {target} — {authz_decision.reason}")
+                if _audit:
+                    _audit.log_scan_attempt(name, str(target), False, f"target_authz: {authz_decision.reason}")
+                return [TextContent(type="text", text=json.dumps({
+                    "error": f"目标未授权: {authz_decision.reason}",
+                    "target": str(target),
+                    "hint": "请将目标添加到 config.yaml 的 target_authorization.targets 白名单中",
+                }, ensure_ascii=False))]
+
     # --- v4.1 Security: Target policy check for scan tools ---
     if _target_policy and arguments and isinstance(arguments, dict):
         target = arguments.get("target") or arguments.get("domain") or arguments.get("ip") or arguments.get("url")
@@ -1011,6 +1080,7 @@ async def _init():
     global _cnvd_client, _cnnvd_client, _cve_cn_mapper, _offline_mirror  # v5.0 Intel
     global _fix_verifier, _baseline_checker, _neo4j  # v5.0 Compliance / Graph
     global _extreme_sanitizer, _intranet_guard, _privilege_enforcer, _tool_manager, _fingerprint_loader  # v5.1
+    global _rbac_mgr, _namespace_mgr, _target_authz, _distributed_mgr  # v5.3
 
     _config = load_config()
     setup_logging(level=_config.server.log_level, fmt=_config.server.log_format)
@@ -1165,6 +1235,48 @@ async def _init():
     _fingerprint_loader.load_all()
     logger.info(f"Correlator v5.1: {_fingerprint_loader.total_banner_patterns} banner patterns, "
                 f"{_fingerprint_loader.total_categories} categories loaded")
+
+    # v5.3 — Authorization Disclaimer (must confirm before running)
+    if not check_authorization_confirmed():
+        logger.warning(AUTHORIZATION_DISCLAIMER)
+        if os.environ.get("VULNRESEARCH_AUTHORIZED", "").lower() not in ("1", "true", "yes"):
+            print(AUTHORIZATION_DISCLAIMER)
+            confirm_authorization()
+            logger.info("Authorization confirmed by startup")
+    else:
+        logger.info("v5.3 Authorization: Previously confirmed")
+
+    # v5.3 — RBAC: Role-Based Access Control
+    _rbac_mgr = init_rbac(RBACConfig(
+        default_role=Role.OPERATOR,
+        enforce=True,
+        audit_access=True,
+    ))
+    logger.info(f"RBAC v5.3: {_rbac_mgr.summary()['role_label']} "
+                f"(max level={_rbac_mgr.get_max_level().name}, "
+                f"{_rbac_mgr.summary()['total_tools']} tools mapped)")
+
+    # v5.3 — Tool Namespace Isolation (防MCP工具名冲突)
+    _namespace_mgr = init_namespace(namespace="vuln", strict=False)
+    logger.info(f"Namespace v5.3: '{_namespace_mgr.namespace}' prefix, "
+                f"{_namespace_mgr.size()} tools (strict={_namespace_mgr.strict})")
+
+    # v5.3 — Target Authorization (授权白名单)
+    _target_authz = init_authorizer(AuthzConfig(
+        enabled=True,
+        mode="strict",
+        default_deny=True,
+        auto_learn=False,
+    ))
+    logger.info(f"Authorization v5.3: mode={_target_authz.config.mode}, "
+                f"whitelist={_target_authz.summary()['whitelist_size']} entries")
+
+    # v5.3 — Distributed Architecture (可选 Redis)
+    _distributed_mgr = get_distributed()
+    await _distributed_mgr.start()
+    logger.info(f"Distributed v5.3: {_distributed_mgr.summary()['mode']} mode, "
+                f"node={_distributed_mgr.config.node_id}, "
+                f"role={_distributed_mgr.config.node_role}")
 
     # Health check
     _health = await startup_health_check()
