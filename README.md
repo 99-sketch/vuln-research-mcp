@@ -1,16 +1,17 @@
 # vuln-research-mcp
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-4.0.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-4.1.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/python-3.10_|_3.11_|_3.12-blue.svg" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/tools-39-orange.svg" alt="Tools">
-  <img src="https://img.shields.io/badge/pipelines-3-purple.svg" alt="Pipelines">
+  <img src="https://img.shields.io/badge/security_hardened-v4.1-red.svg" alt="Security">
+  <img src="https://img.shields.io/badge/tests-363%20passed-brightgreen.svg" alt="Tests">
 </p>
 
-> **渗透测试工具链基础设施级组件** — Vulnerability Research MCP Server v4.0
+> **渗透测试工具链基础设施级组件** — Vulnerability Research MCP Server v4.1 (Security Hardened)
 >
-> 39 个工具 | 事件总线 | SQLite 持久层 | 资产-漏洞关联引擎 | YAML 管道编排 | MITRE ATT&CK 映射 | REST API | 渗透测试报告
+> 39 个工具 | 事件总线 | SQLite 持久层 | 资产-漏洞关联引擎 | YAML 管道编排 | MITRE ATT&CK 映射 | REST API | 安全加固 (v4.1)
 
 ---
 
@@ -165,9 +166,31 @@ src/
 │   ├── report_tool.py             # 报告生成
 │   └── scanner_tools.py           # Nmap XML + Nuclei + Metasploit + SearchSploit
 │
+├── security/                   # v4.1 安全加固模块
+│   ├── input_sanitizer.py          # 输入净化 (命令注入/SSRF/路径遍历)
+│   ├── target_policy.py            # 目标白名单 + 扫描策略
+│   ├── audit.py                    # 不可篡改审计日志
+│   ├── key_manager.py              # API Key 加密存储
+│   └── tool_guard.py               # 工具 RBAC + 哈希校验 + 频率限制
+│
 ├── validators/                # 输入校验
 └── rate_limiter.py            # NVD API 速率控制
 ```
+
+---
+
+## v4.1 安全加固新特性
+
+| 模块 | 功能 | 描述 |
+|------|------|------|
+| `Input Sanitizer` | 输入净化 | 命令注入/SSRF/路径遍历/XSS 模式检测，白名单字符验证 |
+| `Target Policy` | 目标管控 | 白名单/黑名单网段、域名后缀限制、扫描次数上限 |
+| `Audit Logger` | 审计日志 | SHA256 哈希链、JSONL 追加写入、参数自动脱敏 |
+| `Key Manager` | 密钥安全 | 设备绑定加密存储、环境变量优先注入、内存缓存清除 |
+| `Tool Guard` | 工具权限 | 5 级风险分类 (read_only→system)、频率限制、哈希校验 |
+| `Log Redaction` | 日志脱敏 | 自动替换 API Key、Token、密码等敏感信息 |
+
+> 📖 完整安全加固指南: [docs/SECURITY.md](docs/SECURITY.md) | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ---
 

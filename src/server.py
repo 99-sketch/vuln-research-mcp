@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Vulnerability Research MCP Server v4.0.0
+Vulnerability Research MCP Server v4.1.0
 Penetration Testing Infrastructure Component
 
 v4.0 Architecture (Layered):
   gateway/       多协议接入 (MCP + REST API + WebSocket + CLI)
+  security/      v4.1 安全加固 (输入净化/目标白名单/审计日志/密钥管理/工具权限)
   bus/           事件总线 (Pub/Sub)
   orchestrator/  流水线编排 + 任务调度
   correlator/    资产-漏洞关联引擎
@@ -83,7 +84,13 @@ from src.watchdog.watcher import Watchdog, WatchRule
 # Plugins
 from src.plugins.sdk import get_plugin_manager, PluginManager
 
-__version__ = "4.0.0"
+# v4.1 Security Module
+from src.security.audit import AuditLogger, create_audit_logger
+from src.security.tool_guard import ToolGuard, ToolRiskLevel, create_tool_guard
+from src.security.target_policy import TargetPolicy, ScanLimitPolicy, create_default_policy
+from src.security.key_manager import SecureKeyManager, create_key_manager
+
+__version__ = "4.1.0"
 
 # ---------- State ----------
 
@@ -100,6 +107,11 @@ _pipeline: Optional[PipelineOrchestrator] = None
 _scheduler: Optional[TaskScheduler] = None
 _attack_mapper: Optional[ATTACKMapper] = None
 _report_gen: Optional[PentestReportGenerator] = None
+# v4.1 Security
+_audit: Optional[AuditLogger] = None
+_tool_guard: Optional[ToolGuard] = None
+_target_policy: Optional[TargetPolicy] = None
+_key_manager: Optional[SecureKeyManager] = None
 
 
 def _register_all_tools():
@@ -593,6 +605,26 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
     logger = logging.getLogger("vuln-research-mcp")
     logger.info(f"Call: {name}")
 
+    # --- v4.1 Security: Tool Guard check ---
+    if _tool_guard:
+        allowed, reason = _tool_guard.is_allowed(name)
+        if not allowed:
+            logger.warning(f"工具调用被拒绝: {name} - {reason}")
+            if _audit:
+                _audit.log_tool_call(name, arguments or {}, result="denied", reason=reason)
+            return [TextContent(type="text", text=json.dumps({"error": f"Tool blocked: {reason}"}, ensure_ascii=False))]
+
+    # --- v4.1 Security: Target policy check for scan tools ---
+    if _target_policy and arguments and isinstance(arguments, dict):
+        target = arguments.get("target") or arguments.get("domain") or arguments.get("ip") or arguments.get("url")
+        if target and name in ("scan_ports", "enumerate_subdomains", "generate_nuclei_command"):
+            allowed, reason = _target_policy.check_target(str(target))
+            if not allowed:
+                logger.warning(f"目标被策略拒绝: {target} - {reason}")
+                if _audit:
+                    _audit.log_scan_attempt(name, str(target), False, reason)
+                return [TextContent(type="text", text=json.dumps({"error": f"Target denied: {reason}"}, ensure_ascii=False))]
+
     registry = get_registry()
     tool_def = registry.resolve(name)
     if not tool_def:
@@ -600,12 +632,19 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
 
     try:
         result = await tool_def.handler(**arguments)
+        # --- v4.1 Security: Audit logging ---
+        if _audit:
+            _audit.log_tool_call(name, arguments or {}, result="success")
         return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
     except ValueError as e:
         logger.warning(f"Tool {name} validation failed: {e}")
+        if _audit:
+            _audit.log_tool_call(name, arguments or {}, result="error", reason=str(e))
         return [TextContent(type="text", text=json.dumps({"error": f"Validation failed: {e}"}, ensure_ascii=False))]
     except Exception as e:
         logger.error(f"Tool {name} failed: {e}")
+        if _audit:
+            _audit.log_tool_call(name, arguments or {}, result="error", reason=str(e))
         return [TextContent(type="text", text=json.dumps({"error": str(e)}, ensure_ascii=False))]
 
 
@@ -614,6 +653,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
 async def _init():
     global _config, _health, _graph, _sessions, _workflow_engine, _watchdog
     global _bus, _db, _correlator, _pipeline, _scheduler, _attack_mapper, _report_gen
+    global _audit, _tool_guard, _target_policy, _key_manager  # v4.1 Security
 
     _config = load_config()
     setup_logging(level=_config.server.log_level, fmt=_config.server.log_format)
@@ -687,6 +727,15 @@ async def _init():
     plugin_mgr = get_plugin_manager()
     logger.info(f"Plugins: {len(plugin_mgr.list_all())} loaded")
 
+    # v4.1 Security Module
+    _audit = create_audit_logger()
+    _tool_guard = create_tool_guard()
+    _target_policy = create_default_policy()
+    _key_manager = create_key_manager()
+    _key_manager.load_from_env()
+    logger.info("Security: Audit log + Tool guard + Target policy + Key manager initialized")
+    logger.info(f"Security: {_tool_guard.filter_tools.__name__} | Max risk level: {_tool_guard._max_risk_level.value}")
+
     # Health check
     _health = await startup_health_check()
     degraded = get_degraded_tools(_health)
@@ -701,7 +750,7 @@ async def _init():
 async def main():
     await _init()
     logger = logging.getLogger("vuln-research-mcp")
-    logger.info("v4.0 ready. Waiting for MCP calls...")
+    logger.info("v4.1 ready. Waiting for MCP calls...")
 
     async with stdio_server() as (read_stream, write_stream):
         await server.run(read_stream, write_stream, server.create_initialization_options())

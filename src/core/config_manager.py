@@ -55,10 +55,23 @@ class ToolsConfig:
 
 
 @dataclass
+class SecurityConfig:
+    """v4.1 安全配置"""
+    max_risk_level: str = "system"      # read_only | network_info | active_scan | exploit | system
+    audit_enabled: bool = True
+    audit_dir: str = ""                 # 审计日志目录
+    target_whitelist_enabled: bool = False
+    target_whitelist_file: str = ""     # 目标白名单配置文件
+    log_redaction: bool = True          # 日志脱敏
+    require_approval_for_scans: bool = True  # 扫描需审批
+
+
+@dataclass
 class AppConfig:
     server: ServerConfig = field(default_factory=ServerConfig)
     api_keys: ApiKeysConfig = field(default_factory=ApiKeysConfig)
     tools: ToolsConfig = field(default_factory=ToolsConfig)
+    security: SecurityConfig = field(default_factory=SecurityConfig)
     rate_limit: RateLimitConfig = field(default_factory=RateLimitConfig)
     cache: CacheConfig = field(default_factory=CacheConfig)
     circuit_breaker: CircuitBreakerConfig = field(default_factory=CircuitBreakerConfig)
@@ -172,6 +185,19 @@ def load_config(config_path: str = None) -> AppConfig:
             epss_recovery_seconds=cb.get("epss_recovery_seconds", 60.0),
         )
 
+    # v4.1 Security
+    if "security" in raw:
+        sec = raw["security"]
+        cfg.security = SecurityConfig(
+            max_risk_level=sec.get("max_risk_level", "system"),
+            audit_enabled=sec.get("audit_enabled", True),
+            audit_dir=sec.get("audit_dir", ""),
+            target_whitelist_enabled=sec.get("target_whitelist_enabled", False),
+            target_whitelist_file=sec.get("target_whitelist_file", ""),
+            log_redaction=sec.get("log_redaction", True),
+            require_approval_for_scans=sec.get("require_approval_for_scans", True),
+        )
+
     # NVD API Key 特殊处理：环境变量 > config.yaml
     nvd_key = os.environ.get("NVD_API_KEY", cfg.api_keys.nvd)
     if nvd_key:
@@ -217,6 +243,16 @@ circuit_breaker:
   cisa_recovery_seconds: 60
   epss_failure_threshold: 3
   epss_recovery_seconds: 60
+
+# v4.1 安全配置
+security:
+  max_risk_level: system        # read_only | network_info | active_scan | exploit | system
+  audit_enabled: true
+  audit_dir: ~/.vuln-research-mcp/audit
+  target_whitelist_enabled: false  # 启用后仅允许白名单目标
+  target_whitelist_file: ""        # 白名单 JSON 文件路径
+  log_redaction: true              # 日志脱敏（自动替换 API Key 等敏感信息）
+  require_approval_for_scans: true  # 批量扫描需人工审批
 """
 
     with open(config_file, "w", encoding="utf-8") as f:

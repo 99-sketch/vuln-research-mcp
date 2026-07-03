@@ -1,5 +1,48 @@
 # Changelog
 
+## v4.1.0 (2026-07-03) — 安全加固版本
+
+### 新增安全模块 (5)
+
+- **Input Sanitizer** (`src/security/input_sanitizer.py`): 命令注入/SSRF/路径遍历/XSS 模式检测，白名单字符验证，shell 元字符拦截，网络目标黑名单
+- **Target Policy** (`src/security/target_policy.py`): 白名单/黑名单网段控制，域名后缀限制，扫描次数上限，冷却时间机制，企业级预设策略
+- **Audit Logger** (`src/security/audit.py`): SHA256 哈希链审计日志，JSONL 追加写入，敏感参数自动脱敏，不可篡改事件记录
+- **Key Manager** (`src/security/key_manager.py`): 设备绑定加密存储，PBKDF2 密钥派生，环境变量优先注入，内存缓存清除
+- **Tool Guard** (`src/security/tool_guard.py`): 5 级风险分类 (read_only/network_info/active_scan/exploit/system)，频率限制，工具哈希防篡改校验，按等级过滤工具列表
+
+### 安全漏洞修复 (P0)
+
+- **search_metasploit 命令注入**: 添加 `sanitize_shell_query()` 输入净化，拒绝 shell 元字符
+- **execute_scanner shell 注入**: 从 `create_subprocess_shell` 改为 `create_subprocess_exec(*args)` list-based 执行 + shlex 解析
+- **日志敏感信息泄露**: 添加 `RedactionFilter` 自动脱敏 API Key/Token/密码等敏感字段
+
+### 安全加固
+
+- **MCP call_tool 安全层**: 集成 Tool Guard (权限检查) + Target Policy (目标白名单) + Audit Logger (调用审计)
+- **REST API CORS 收紧**: 从 `allow_origins=["*"]` 改为仅允许 localhost，可通过 `CORS_ORIGINS` 环境变量配置
+- **pyproject.toml 依赖锁定**: 所有依赖添加上限版本约束 (`<2.0`, `<1.0` 等)
+- **配置新增 security 段**: `max_risk_level`、`audit_enabled`、`target_whitelist_enabled`、`log_redaction`、`require_approval_for_scans`
+- **config.example.yaml 更新**: 添加完整安全配置示例和扫描策略参数
+
+### 文档
+
+- **docs/SECURITY.md**: 安全加固完整指南，包含分层架构、工具风险等级、场景化配置、已知风险与缓解
+- **docs/DEPLOYMENT.md**: 生产部署指南，Docker/虚拟环境/Kubernetes 三种方式，监控指标和备份恢复
+- **docs/CONTRIBUTING.md**: 贡献指南，安全编码规范，新工具添加规范，安全漏洞披露流程
+
+### 测试
+
+- 新增 86 个安全模块测试 (`tests/test_security_*.py`)
+- 全部 277 个已有测试无回归
+- 总测试数: 363 (277 + 86)
+
+### 版本更新
+
+- `__version__` → 4.1.0
+- `pyproject.toml` version → 4.1.0
+
+---
+
 ## v4.0.0 (2026-07-03) — 渗透测试工具链基础设施级组件
 
 ### 新增基础设施模块 (7)

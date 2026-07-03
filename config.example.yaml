@@ -30,3 +30,32 @@ circuit_breaker:
   cisa_recovery_seconds: 60
   epss_failure_threshold: 3
   epss_recovery_seconds: 60
+
+# v4.1 安全配置
+security:
+  # 最大工具风险等级: read_only | network_info | active_scan | exploit | system
+  #    read_only   = 仅情报查询（CVE搜索、CVSS评分等）
+  #    network_info = 网络信息收集（DNS查询、WHOIS等）
+  #    active_scan  = 主动扫描（端口扫描、子域名枚举等）
+  #    exploit      = 漏洞利用（Metasploit、Exploit-DB搜索等）
+  #    system       = 所有工具（包括git clone、文件读写等）
+  max_risk_level: system
+  # 审计日志
+  audit_enabled: true
+  audit_dir: ""                # 默认 ~/.vuln-research-mcp/audit
+  # 目标白名单（企业部署推荐启用）
+  target_whitelist_enabled: false
+  target_whitelist_file: ""    # JSON 文件路径，格式见 docs/security.md
+  # 日志脱敏（自动替换 API Key 等敏感信息）
+  log_redaction: true
+  # 批量扫描需人工审批（AI Agent 不会自动执行批量扫描）
+  require_approval_for_scans: true
+  # 扫描限制
+  scan:
+    max_concurrent: 3          # 最大并发扫描数
+    max_targets_per_scan: 50   # 单次最大目标数
+    max_ports_per_scan: 100    # 单次最大端口数
+    cooldown_seconds: 30       # 扫描冷却时间（秒）
+    daily_limit: 100           # 每日扫描上限
+    timeout_seconds: 300       # 单次扫描超时（秒）
+

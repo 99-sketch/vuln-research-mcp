@@ -191,10 +191,43 @@ def generate_nuclei_command(target: str, templates: Optional[List[str]] = None,
 async def execute_scanner(command: str, timeout_seconds: int = 300) -> Dict[str, Any]:
     """Execute an external scanner command and return results.
 
+    Security: Uses shlex.split() to parse command into a list, then
+    executes via create_subprocess_exec(*args) to avoid shell injection.
+    Pipe operators and shell metacharacters are intentionally rejected
+    by the list-based execution model.
+
     Returns:
         {success: bool, stdout: str, stderr: str, returncode: int, duration_ms: int}
     """
+    import shlex as _shlex
     import time as _time
+
+    # Parse command into a safe arg list (rejects shell metacharacters)
+    try:
+        cmd_args = _shlex.split(command)
+    except ValueError as e:
+        return {
+            "success": False,
+            "stdout": "",
+            "stderr": f"Invalid command syntax: {e}",
+            "returncode": -1,
+            "duration_ms": 0,
+        }
+
+    if not cmd_args:
+        return {
+            "success": False,
+            "stdout": "",
+            "stderr": "Empty command",
+            "returncode": -1,
+            "duration_ms": 0,
+        }
+
+    # Sanitize each argument against injection patterns
+    from ..security.input_sanitizer import sanitize_injection_patterns
+    for i, arg in enumerate(cmd_args):
+        if i > 0:  # Skip the binary name
+            sanitize_injection_patterns(arg)
 
     bus = get_event_bus()
     bus.publish(Event(
@@ -205,8 +238,8 @@ async def execute_scanner(command: str, timeout_seconds: int = 300) -> Dict[str,
 
     start = _time.time()
     try:
-        proc = await asyncio.create_subprocess_shell(
-            command,
+        proc = await asyncio.create_subprocess_exec(
+            *cmd_args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -259,7 +292,14 @@ def search_metasploit(query: str) -> List[Dict[str, str]]:
     """Search Metasploit modules matching a query.
 
     Uses msfconsole -q -x "search <query>; exit" or searchsploit as fallback.
+    Query is sanitized to prevent command injection.
+
+    Security: Input sanitized via sanitize_shell_query() before reaching
+    msfconsole subprocess. All shell metacharacters are rejected.
     """
+    from ..security.input_sanitizer import sanitize_shell_query
+
+    query = sanitize_shell_query(query)
     results = []
 
     try:
