@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Vulnerability Research MCP Server v1.0.0
+Vulnerability Research MCP Server v1.1.0
 模块化架构：server.py = 路由层，tools/ = 实现层，validators/ = 安全校验层，rate_limiter = 速率控制
+新增 PoC 档案库搜索（exploitarium 集成）
 """
 
 import asyncio
@@ -20,6 +21,7 @@ from .tools.exploit_tool import search_exploit
 from .tools.nuclei_tool import find_nuclei_template
 from .tools.scan_tools import scan_ports, enumerate_subdomains
 from .tools.network_tools import check_http_headers, query_dns, geolocate_ip
+from .tools.poc_archive_tool import search_poc_archive, list_poc_archive, clone_archive, update_archive
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("vuln-research-mcp")
@@ -159,6 +161,48 @@ TOOL_DEFINITIONS = [
             "required": ["ip"],
         },
     ),
+    Tool(
+        name="search_poc_archive",
+        description="搜索本地 PoC 档案库（exploitarium），按关键词或 CVE-ID 搜索漏洞 PoC",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "搜索关键词（软件名、漏洞类型等）"},
+                "cve_id": {"type": "string", "description": "按 CVE-ID 精确匹配（如：CVE-2026-55200）"},
+                "custom_path": {"type": "string", "description": "自定义档案库路径（默认：~/exploitarium）"},
+            },
+        },
+    ),
+    Tool(
+        name="list_poc_archive",
+        description="列出 PoC 档案库中所有条目",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "custom_path": {"type": "string", "description": "自定义档案库路径（默认：~/exploitarium）"},
+            },
+        },
+    ),
+    Tool(
+        name="clone_poc_archive",
+        description="克隆 exploitarium PoC 档案库到本地",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "custom_path": {"type": "string", "description": "自定义克隆路径（默认：~/exploitarium）"},
+            },
+        },
+    ),
+    Tool(
+        name="update_poc_archive",
+        description="更新（git pull）本地 PoC 档案库",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "custom_path": {"type": "string", "description": "自定义档案库路径（默认：~/exploitarium）"},
+            },
+        },
+    ),
 ]
 
 # 工具名 → 处理函数映射
@@ -174,6 +218,10 @@ TOOL_HANDLERS = {
     "check_http_headers": check_http_headers,
     "query_dns": query_dns,
     "geolocate_ip": geolocate_ip,
+    "search_poc_archive": search_poc_archive,
+    "list_poc_archive": list_poc_archive,
+    "clone_poc_archive": clone_archive,
+    "update_poc_archive": update_archive,
 }
 
 
@@ -205,7 +253,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
 # ---------- 主函数 ----------
 
 async def main():
-    logger.info("Vulnerability Research MCP Server v1.0.0 启动中...")
+    logger.info("Vulnerability Research MCP Server v1.1.0 启动中...")
     async with stdio_server() as (read_stream, write_stream):
         await server.run(read_stream, write_stream, server.create_initialization_options())
 

@@ -25,6 +25,7 @@ from src.tools.network_tools import check_http_headers, query_dns, geolocate_ip
 from src.tools.exploit_tool import search_exploit, _check_searchsploit
 from src.tools.nuclei_tool import find_nuclei_template
 from src.tools.scan_tools import scan_ports, enumerate_subdomains, _check_tool_version
+from src.tools.poc_archive_tool import search_poc_archive, list_poc_archive, clone_archive, update_archive
 from src.rate_limiter import NVD_API_KEY
 
 
@@ -430,3 +431,41 @@ class TestRateLimiter:
                 )
         finally:
             await client.aclose()
+
+
+# ========== PoC 档案库搜索 (6 项) ==========
+
+class TestPoCArchive:
+
+    @pytest.mark.asyncio
+    async def test_search_not_cloned(self):
+        """未克隆时应返回错误，不应崩溃"""
+        r = await search_poc_archive(query="test", custom_path="/nonexistent/path/12345")
+        assert "error" in r
+        assert "suggestion" in r or "repo_url" in r
+
+    @pytest.mark.asyncio
+    async def test_list_not_cloned(self):
+        r = await list_poc_archive(custom_path="/nonexistent/path/12345")
+        assert "error" in r
+
+    @pytest.mark.asyncio
+    async def test_search_empty_query_no_crash(self):
+        """空查询不应崩溃"""
+        r = await search_poc_archive(custom_path="/nonexistent/path/12345")
+        assert r is not None
+
+    @pytest.mark.asyncio
+    async def test_search_invalid_cve(self):
+        r = await search_poc_archive(cve_id="INVALID", custom_path="/nonexistent/path/12345")
+        # 未克隆时先返回克隆错误，或返回 CVE 格式错误
+        assert r is not None
+
+    def test_clone_archive_no_git(self):
+        """clone_archive 函数应存在且可调用"""
+        # 只验证函数存在，不实际克隆
+        assert callable(clone_archive)
+
+    def test_update_archive_no_git(self):
+        """update_archive 函数应存在且可调用"""
+        assert callable(update_archive)
