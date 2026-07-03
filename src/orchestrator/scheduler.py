@@ -45,7 +45,9 @@ class ScheduledJob:
 class TaskScheduler:
     """Lightweight task scheduler without external dependencies."""
 
-    def __init__(self):
+    _id_counter = 0
+
+    def __init__(self) -> None:
         self._bus = get_event_bus()
         self._jobs: Dict[str, ScheduledJob] = {}
         self._executor: Optional[Callable] = None
@@ -58,7 +60,8 @@ class TaskScheduler:
 
     def add_job(self, job: ScheduledJob) -> str:
         if not job.id:
-            job.id = f"job_{int(time.time() * 1000)}"
+            TaskScheduler._id_counter += 1
+            job.id = f"job_{int(time.time() * 1000)}_{TaskScheduler._id_counter}"
         self._compute_next_run(job)
         with self._lock:
             self._jobs[job.id] = job

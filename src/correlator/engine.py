@@ -118,19 +118,23 @@ KNOWN_VERSION_VULNS: Dict[str, List[Dict[str, Any]]] = {
 }
 
 BANNER_PATTERNS: Dict[str, str] = {
+    # Order matters: more specific patterns before generic ones
     "OpenSSH": "openssh",
-    "Apache": "apache",
+    "Apache Tomcat": "tomcat",
+    "Tomcat": "tomcat",
     "Apache/2": "apache",
+    "Apache": "apache",
     "nginx": "nginx",
     "MySQL": "mysql",
     "MariaDB": "mariadb",
     "PostgreSQL": "postgresql",
     "Redis": "redis",
     "MongoDB": "mongodb",
-    "Tomcat": "tomcat",
     "WordPress": "wordpress",
     "Drupal": "drupal",
     "Django": "django",
+    "Spring Boot": "spring",
+    "Spring": "spring",
     "PHP": "php",
     "Python": "python",
     "Node.js": "nodejs",
@@ -215,7 +219,7 @@ class Correlator:
 
         try:
             async with httpx.AsyncClient(timeout=15) as client:
-                params = {
+                params: Dict[str, Any] = {
                     "cpeName": cpe_str,
                     "resultsPerPage": 20,
                 }

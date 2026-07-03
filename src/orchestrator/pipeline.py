@@ -94,7 +94,7 @@ class Pipeline:
 class PipelineOrchestrator:
     """Loads, validates, and executes YAML-defined pentest pipelines."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._bus = get_event_bus()
         self._pipelines_dir = "data/pipelines"
         self._tool_executor: Optional[Callable] = None
@@ -178,7 +178,7 @@ class PipelineOrchestrator:
             source="pipeline",
         ))
 
-        stage_results = []
+        stage_results: List[Dict[str, Any]] = []
         overall_success = True
 
         for idx, stage in enumerate(pipeline.stages):
@@ -203,7 +203,6 @@ class PipelineOrchestrator:
                     for s in stage.steps
                 ]})
             else:
-                step_list = []
                 for step in stage.steps:
                     await self._execute_step(step, pipeline.context, pipeline.name)
                 stage_results.append({"stage": stage.name, "steps": [
@@ -237,8 +236,8 @@ class PipelineOrchestrator:
                 "name": pipeline.name,
                 "success": overall_success,
                 "stages_total": len(pipeline.stages),
-                "stages_completed": sum(1 for r in stage_results
-                                        if all(s["status"] == "completed" for s in r["steps"])),
+                "stages_completed": len([r for r in stage_results
+                                         if all(s["status"] == "completed" for s in r["steps"])]),
             },
             source="pipeline",
         ))

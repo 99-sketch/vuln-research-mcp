@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 authors = [
-    {name = "Penetration Testing Expert Agent"}
+    {name = "99-sketch", email = "team@99-sketch.dev"}
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -37,9 +37,9 @@ dependencies = [
 dev = [
     "pytest",
     "pytest-asyncio",
-    "black",
-    "isort",
+    "ruff",
     "mypy",
+    "pre-commit",
     "build",
     "twine"
 ]
@@ -53,6 +53,29 @@ include = ["src*"]
 [tool.black]
 line-length = 88
 target-version = ['py310']
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
 
 [tool.isort]
 profile = "black"

@@ -51,7 +51,7 @@ class EventBus:
     Async handlers are scheduled via asyncio event loop if available.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._sync_handlers: Dict[str, List[HandlerFn]] = defaultdict(list)
         self._async_handlers: Dict[str, List[AsyncHandlerFn]] = defaultdict(list)
         self._wildcard_handlers: List[HandlerFn] = []
@@ -59,7 +59,7 @@ class EventBus:
         self._lock = threading.RLock()
         self._history: List[Event] = []
         self._max_history = 1000
-        self._counter = 0
+        self._counter: int = 0
 
     def subscribe(self, event_type: str, handler: HandlerFn) -> None:
         """Subscribe a synchronous handler to a specific event type."""
@@ -98,11 +98,10 @@ class EventBus:
                 self._history = self._history[-self._max_history // 2 :]
             self._history.append(event)
 
-        syncs = []
-        wildcards = []
-        asyncs = []
-        async_wildcards = []
-
+        syncs: List[HandlerFn]
+        wildcards: List[HandlerFn]
+        asyncs: List[AsyncHandlerFn]
+        async_wildcards: List[AsyncHandlerFn]
         with self._lock:
             syncs = list(self._sync_handlers.get(event.event_type, []))
             wildcards = list(self._wildcard_handlers)
@@ -155,11 +154,10 @@ class EventBus:
                 self._history = self._history[-self._max_history // 2 :]
             self._history.append(event)
 
-        syncs = []
-        wildcards = []
-        asyncs = []
-        async_wildcards = []
-
+        syncs: List[HandlerFn]
+        wildcards: List[HandlerFn]
+        asyncs: List[AsyncHandlerFn]
+        async_wildcards: List[AsyncHandlerFn]
         with self._lock:
             syncs = list(self._sync_handlers.get(event.event_type, []))
             wildcards = list(self._wildcard_handlers)
@@ -177,11 +175,11 @@ class EventBus:
             except Exception:
                 pass
 
-        tasks = []
-        for handler in asyncs:
-            tasks.append(self._safe_async(handler, event))
-        for handler in wildcards:
-            tasks.append(self._safe_async(handler, event))
+        tasks: List[Any] = []
+        for handler in asyncs:  # type: ignore[assignment]
+            tasks.append(self._safe_async(handler, event))  # type: ignore[arg-type]
+        for handler in async_wildcards:  # type: ignore[assignment]
+            tasks.append(self._safe_async(handler, event))  # type: ignore[arg-type]
         if tasks:
             await asyncio.gather(*tasks)
 

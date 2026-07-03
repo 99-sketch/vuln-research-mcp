@@ -150,7 +150,7 @@ TACTICS_ORDER = [
 class ATTACKMapper:
     """Maps vulnerabilities and findings to MITRE ATT&CK framework."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._techniques = dict(ATTACK_TECHNIQUES)
 
     def get_technique(self, technique_id: str) -> Optional[ATTCTechnique]:

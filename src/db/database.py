@@ -219,6 +219,7 @@ class Database:
                  project.status, now, now, project.tags),
             )
             conn.commit()
+            assert cursor.lastrowid is not None
             return cursor.lastrowid
 
     def get_project(self, project_id: int) -> Optional[Project]:
@@ -271,6 +272,7 @@ class Database:
                  1 if asset.is_alive else 0, asset.metadata),
             )
             conn.commit()
+            assert cursor.lastrowid is not None
             return cursor.lastrowid
 
     def get_asset(self, asset_id: int) -> Optional[Asset]:
@@ -318,7 +320,7 @@ class Database:
             (project_id, asset_type, value, port, port),
         ).fetchone()
         if row:
-            asset_id = row[0]
+            asset_id: int = row[0]
             with self._lock:
                 conn.execute(
                     "UPDATE assets SET last_seen=? WHERE id=?",
@@ -343,6 +345,7 @@ class Database:
                  scan.started_at or datetime.utcnow().isoformat(), scan.metadata),
             )
             conn.commit()
+            assert cursor.lastrowid is not None
             return cursor.lastrowid
 
     def update_scan_result(self, scan_id: int, status: str, output: str = "",
@@ -389,6 +392,7 @@ class Database:
                  finding.risk_score, finding.tags),
             )
             conn.commit()
+            assert cursor.lastrowid is not None
             return cursor.lastrowid
 
     def list_findings(self, project_id: Optional[int] = None,
@@ -450,6 +454,7 @@ class Database:
                  evidence.created_at or datetime.utcnow().isoformat()),
             )
             conn.commit()
+            assert cursor.lastrowid is not None
             return cursor.lastrowid
 
     def list_evidences(self, finding_id: int) -> List[Evidence]:
@@ -473,6 +478,7 @@ class Database:
                  event.timestamp or datetime.utcnow().isoformat()),
             )
             conn.commit()
+            assert cursor.lastrowid is not None
             return cursor.lastrowid
 
     def list_timeline(self, project_id: int, limit: int = 100) -> List[TimelineEvent]:
@@ -500,6 +506,7 @@ class Database:
                  report.generated_at or datetime.utcnow().isoformat()),
             )
             conn.commit()
+            assert cursor.lastrowid is not None
             return cursor.lastrowid
 
     def list_reports(self, project_id: Optional[int] = None) -> List[PentestReport]:
