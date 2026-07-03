@@ -1,5 +1,46 @@
 # Changelog
 
+## v5.2.0 (2026-07-03) — 小白友好 · Zero-Command-Line Platform
+
+### 🌐 Web 可视化界面 (零命令行操作)
+- `src/webui/app.py` + `src/webui/templates/` + `src/webui/static/style.css`: 完整的 Web Dashboard
+  - **仪表盘**: 工具统计、指纹库规模、安全架构可视化、快捷操作入口
+  - **CVE 查询页**: 搜索框输入 CVE 编号 → 即时显示详情、CVSS 评分、参考链接
+  - **资产扫描页**: 输入目标 IP/域名 → 一键端口扫描 → 表格展示结果
+  - **报告中心**: 报告格式选择 (Markdown/PDF/STIX)
+  - **工具箱**: 12 个工具卡片, 点击即可使用
+  - **设置页**: 环境变量状态一览
+  - 自动检测模块可用性, 离线降级提示
+
+### 🐳 Docker 一键部署
+- `docker-compose.yml`: 一条命令 `docker compose up -d` 启动全部服务
+  - Web UI (8080) + REST API (8765) 双服务
+  - 可选 Neo4j 知识图谱 (取消注释即启用)
+  - 环境变量驱动配置 (NVD_API_KEY/钉钉/邮件/内网保护)
+  - 持久化数据卷 (数据库/缓存/报告)
+  - 健康检查 + 自动重启
+- `Dockerfile` 重写: Kali Linux 基础镜像 + 全工具预装 + 3 层缓存优化
+- `entrypoint.sh`: 双服务启动脚本
+
+### 🧙 交互式 CLI 向导
+- `src/cli_wizard.py`: 数字菜单选操作, 零参数记忆
+  - 9 大功能模块: CVE 查询/端口扫描/漏洞评估/威胁情报/CNVD/报告/工具检查/设置/Web 界面
+  - Rich 美化终端输出 (面板/表格/进度条/颜色)
+  - 自动内网检测 + 权限检查
+  - `vuln-wizard` 命令行入口
+
+### 📖 零基础文档
+- `docs/BEGINNER.md`: 面向完全零基础用户
+  - "我为什么要用"→"Docker 安装"→"一键启动"→"Web 界面教程"→"进阶配置"
+  - Windows/Mac/Linux 三平台图文教程
+  - 术语表 (CVE/CVSS/NVD 大白话解释)
+  - 常见问题 (FAQ) 22 条
+
+### 项目更新
+- pyproject.toml: v5.2.0, 3 个新 CLI 入口 (`vuln-wizard`/`vuln-web`/`vuln-api`)
+- README: 30 秒快速开始 + Docker 徽章 + Web UI 徽章 + 零基础用户引导
+
+
 ## v5.1.0 (2026-07-03) — 极致安全 + 跨平台 + 全网指纹库 · Extreme Security
 
 ### 极致输入防御 (AST 级 Shell 注入检测)

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}CVE 查询 - Vuln-Research-MCP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>🔍 CVE 漏洞查询</h1>
+  <p class="subtitle">输入 CVE 编号, 一站式获取漏洞详情、CVSS 评分、影响范围和修复建议</p>
+</div>
+
+<div class="search-box">
+  <form id="cve-form" onsubmit="searchCVE(event)">
+    <div class="input-group">
+      <input type="text" id="cve-input" name="cve_id"
+             placeholder="输入 CVE 编号，如: CVE-2021-44228"
+             pattern="CVE-\d{4}-\d{4,}" autofocus>
+      <button type="submit" id="search-btn">🔍 查询</button>
+    </div>
+  </form>
+  <p class="search-hint">热门查询:
+    <a href="#" onclick="quickSearch('CVE-2021-44228')">Log4j</a> ·
+    <a href="#" onclick="quickSearch('CVE-2022-22965')">Spring4Shell</a> ·
+    <a href="#" onclick="quickSearch('CVE-2023-44487')">HTTP/2 Rapid Reset</a> ·
+    <a href="#" onclick="quickSearch('CVE-2024-3094')">xz Utils Backdoor</a>
+  </p>
+</div>
+
+<div id="result-area" class="result-area" style="display:none">
+  <div class="loading" id="loading">⏳ 查询中...</div>
+  <div id="result-content"></div>
+</div>
+
+<script>
+function quickSearch(cve) {
+  document.getElementById('cve-input').value = cve;
+  document.getElementById('cve-form').dispatchEvent(new Event('submit'));
+}
+
+async function searchCVE(e) {
+  e.preventDefault();
+  const cveId = document.getElementById('cve-input').value.trim();
+  if (!cveId) return;
+
+  const area = document.getElementById('result-area');
+  const content = document.getElementById('result-content');
+  const loading = document.getElementById('loading');
+  area.style.display = 'block';
+  content.innerHTML = '';
+  loading.style.display = 'block';
+  document.getElementById('search-btn').disabled = true;
+
+  try {
+    const formData = new FormData();
+    formData.append('cve_id', cveId);
+    const resp = await fetch('/api/cve/search', { method: 'POST', body: formData });
+    const data = await resp.json();
+
+    loading.style.display = 'none';
+    if (data.error) {
+      content.innerHTML = '<div class="error-msg">❌ ' + data.error + '</div>';
+      return;
+    }
+
+    const d = data.data;
+    const sevColor = {CRITICAL:'#dc2626',HIGH:'#ea580c',MEDIUM:'#ca8a04',LOW:'#16a34a',NONE:'#6b7280',UNKNOWN:'#6b7280'};
+    const sevBg = sevColor[d.severity] || '#6b7280';
+
+    let refsHtml = '';
+    if (d.references && d.references.length) {
+      refsHtml = '<div class="detail-section"><h3>📎 参考链接</h3><ul class="ref-list">' +
+        d.references.slice(0,10).map(r => '<li><a href="' + r + '" target="_blank">' + r + '</a></li>').join('') +
+        '</ul></div>';
+    }
+
+    let offlineNote = d.offline ? '<div class="offline-note">⚠️ 离线模式 — 设置 NVD_API_KEY 以启用实时查询</div>' : '';
+
+    content.innerHTML = `
+      ${offlineNote}
+      <div class="cve-result">
+        <div class="cve-header">
+          <span class="cve-id-badge">${d.cve_id}</span>
+          <span class="severity-badge" style="background:${sevBg}">${d.severity || 'UNKNOWN'}</span>
+          ${d.cvss_score ? '<span class="cvss-badge">CVSS: ' + d.cvss_score + '</span>' : ''}
+        </div>
+        <div class="cve-desc">${d.description || '暂无描述'}</div>
+        ${d.published ? '<div class="cve-meta">📅 发布日期: ' + d.published + '</div>' : ''}
+        ${d.cwe_id ? '<div class="cve-meta">🏷️ CWE: ' + d.cwe_id + '</div>' : ''}
+        ${refsHtml}
+      </div>
+    `;
+  } catch (err) {
+    loading.style.display = 'none';
+    content.innerHTML = '<div class="error-msg">❌ 查询失败: ' + err.message + '</div>';
+  } finally {
+    document.getElementById('search-btn').disabled = false;
+  }
+}
+
+// 回车直接搜索
+document.getElementById('cve-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('cve-form').dispatchEvent(new Event('submit'));
+});
+</script>
+{% endblock %}

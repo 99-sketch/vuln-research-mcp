@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}资产扫描 - Vuln-Research-MCP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>🎯 资产扫描</h1>
+  <p class="subtitle">一键检测目标主机的开放端口和服务信息</p>
+</div>
+
+<div class="scan-form card">
+  <form id="scan-form" onsubmit="doScan(event)">
+    <div class="form-group">
+      <label for="target">目标地址</label>
+      <input type="text" id="target" name="target"
+             placeholder="example.com 或 1.2.3.4"
+             required autofocus>
+    </div>
+    <div class="form-group">
+      <label for="ports">扫描端口 (逗号分隔)</label>
+      <input type="text" id="ports" name="ports"
+             value="22,80,443,3306,6379,8080,8443">
+      <small>默认扫描常用端口。内网地址将被自动拦截以保护安全。</small>
+    </div>
+    <div class="form-group">
+      <button type="submit" id="scan-btn" class="btn-primary">🚀 开始扫描</button>
+    </div>
+  </form>
+</div>
+
+<div id="scan-result" style="display:none;margin-top:24px;">
+  <div class="loading" id="scan-loading">⏳ 扫描中...</div>
+  <div id="scan-content" class="card"></div>
+</div>
+
+<script>
+async function doScan(e) {
+  e.preventDefault();
+  const target = document.getElementById('target').value.trim();
+  const ports = document.getElementById('ports').value.trim();
+  if (!target) return;
+
+  document.getElementById('scan-result').style.display = 'block';
+  document.getElementById('scan-content').innerHTML = '';
+  document.getElementById('scan-loading').style.display = 'block';
+  document.getElementById('scan-btn').disabled = true;
+
+  try {
+    const fd = new FormData();
+    fd.append('target', target);
+    fd.append('ports', ports);
+    const resp = await fetch('/api/scan/ports', { method: 'POST', body: fd });
+    const data = await resp.json();
+
+    document.getElementById('scan-loading').style.display = 'none';
+
+    if (data.error) {
+      document.getElementById('scan-content').innerHTML = '<div class="error-msg">🛡️ ' + data.error + '</div>';
+      return;
+    }
+
+    let html = '<div class="scan-success"><h3>✅ 扫描完成 — ' + data.target + '</h3>';
+
+    if (data.results && data.results.open_ports) {
+      html += '<table class="scan-table"><thead><tr><th>端口</th><th>状态</th><th>服务</th><th>版本</th></tr></thead><tbody>';
+      data.results.open_ports.forEach(p => {
+        html += '<tr><td><code>' + p.port + '</code></td>' +
+                '<td><span class="badge-open">' + p.state + '</span></td>' +
+                '<td>' + (p.service || '-') + '</td>' +
+                '<td>' + (p.version || '-') + '</td></tr>';
+      });
+      html += '</tbody></table>';
+    } else if (data.results) {
+      html += '<pre>' + JSON.stringify(data.results, null, 2) + '</pre>';
+    } else {
+      html += '<p>' + (data.note || '扫描已完成') + '</p>';
+    }
+
+    html += '</div>';
+    document.getElementById('scan-content').innerHTML = html;
+  } catch (err) {
+    document.getElementById('scan-loading').style.display = 'none';
+    document.getElementById('scan-content').innerHTML = '<div class="error-msg">❌ ' + err.message + '</div>';
+  } finally {
+    document.getElementById('scan-btn').disabled = false;
+  }
+}
+</script>
+{% endblock %}

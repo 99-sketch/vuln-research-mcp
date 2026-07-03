@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}工具箱 - Vuln-Research-MCP{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>🧰 工具箱</h1>
+  <p class="subtitle">{{ tools|length }} 个安全工具 — 点击即可使用</p>
+</div>
+<div class="tools-grid">
+  {% for t in tools %}
+  <a href="{{ t.link }}" class="tool-card">
+    <span class="tool-icon">{{ t.icon }}</span>
+    <h3>{{ t.name }}</h3>
+    <p>{{ t.desc }}</p>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

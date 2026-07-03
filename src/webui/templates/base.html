@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Vuln-Research-MCP{% endblock %}</title>
+<link rel="stylesheet" href="/static/style.css">
+{% block head %}{% endblock %}
+</head>
+<body>
+<!-- 侧边栏 -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <span class="brand-icon">🛡️</span>
+    <span class="brand-text">VulnResearch</span>
+    <span class="brand-ver">v5.2</span>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="/" class="nav-item {{ 'active' if page == 'dashboard' else '' }}">📊 仪表盘</a>
+    <a href="/cve" class="nav-item {{ 'active' if page == 'cve' else '' }}">🔍 CVE 查询</a>
+    <a href="/scan" class="nav-item {{ 'active' if page == 'scan' else '' }}">🎯 资产扫描</a>
+    <a href="/report" class="nav-item {{ 'active' if page == 'report' else '' }}">📝 报告中心</a>
+    <a href="/tools" class="nav-item {{ 'active' if page == 'tools' else '' }}">🧰 工具箱</a>
+    <a href="/settings" class="nav-item {{ 'active' if page == 'settings' else '' }}">⚙️ 设置</a>
+  </nav>
+  <div class="sidebar-footer">
+    <span class="status-dot online"></span> 系统运行中
+    <br><small>{{ now }}</small>
+  </div>
+</aside>
+
+<!-- 主内容区 -->
+<main class="main-content">
+  {% block content %}{% endblock %}
+</main>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}报告中心 - Vuln-Research-MCP{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>📝 报告中心</h1>
+  <p class="subtitle">一键生成专业渗透测试报告</p>
+</div>
+
+<div class="cards-grid">
+  <div class="card">
+    <h3>📄 Markdown 报告</h3>
+    <p>适合技术团队的轻量级报告格式, 可直接提交到 Git。</p>
+    <button class="btn-primary" disabled>即将上线</button>
+  </div>
+  <div class="card">
+    <h3>📑 PDF 报告</h3>
+    <p>正式交付格式, 包含封面、目录、漏洞章节和修复建议。</p>
+    <button class="btn-primary" disabled>即将上线</button>
+  </div>
+  <div class="card">
+    <h3>📊 STIX 2.1 导出</h3>
+    <p>结构化威胁情报格式, 可直接导入 SIEM/SOAR 平台。</p>
+    <button class="btn-primary" onclick="alert('使用 REST API: GET /api/projects/{id}/report?format=json')">查看 API</button>
+  </div>
+</div>
+{% endblock %}

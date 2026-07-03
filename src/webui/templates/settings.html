@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}设置 - Vuln-Research-MCP{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>⚙️ 设置</h1>
+</div>
+<div class="card">
+  <h3>环境变量</h3>
+  <table class="settings-table">
+    <tr><td>NVD_API_KEY</td><td><span class="badge {{ 'ok' if env.NVD_API_KEY else 'warn' }}">{{ '✅ 已设置' if env.NVD_API_KEY else '⚠️ 未设置' }}</span></td></tr>
+    <tr><td>钉钉告警</td><td><span class="badge {{ 'ok' if env.DINGTALK_WEBHOOK else 'warn' }}">{{ '✅ 已设置' if env.DINGTALK_WEBHOOK else '⚠️ 未设置' }}</span></td></tr>
+    <tr><td>邮件告警</td><td><span class="badge {{ 'ok' if env.SMTP_HOST else 'warn' }}">{{ '✅ 已设置' if env.SMTP_HOST else '⚠️ 未设置' }}</span></td></tr>
+    <tr><td>内网保护</td><td><span class="badge ok">✅ {{ env.INTRANET_BLOCK }}</span></td></tr>
+  </table>
+</div>
+{% endblock %}

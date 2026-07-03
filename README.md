@@ -1,9 +1,11 @@
 # vuln-research-mcp
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-5.1.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-5.2.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/python-3.10_|_3.11_|_3.12-blue.svg" alt="Python">
   <img src="https://img.shields.io/badge/platform-Win_|_Linux_|_macOS-lightgrey.svg" alt="Platform">
+  <img src="https://img.shields.io/badge/docker-ready-blue.svg" alt="Docker">
+  <img src="https://img.shields.io/badge/web_ui-ready-green.svg" alt="Web UI">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/tools-55-orange.svg" alt="Tools">
   <img src="https://img.shields.io/badge/fingerprints-898-brightgreen.svg" alt="Fingerprints">
@@ -12,13 +14,23 @@
   <img src="https://img.shields.io/badge/tests-363%20passed-brightgreen.svg" alt="Tests">
 </p>
 
-> **跨平台企业级安全平台** — Vulnerability Research MCP Server v5.1 (Cross-Platform Enterprise Security)
+> **小白也能用的企业级安全平台** — Vuln-Research-MCP v5.2 (Zero-Command-Line)
 >
-> 55 个工具 | 7层纵深防御 | 898指纹库 | 跨平台(Win/Linux/Mac) | CNVD/CNNVD | 等保2.0 | 离线镜像 | SIEM
+> Web 界面 · Docker 一键部署 · 交互式向导 · 55 个工具 · 7 层纵深防御 · 898 指纹库 · 3 平台兼容
 
 ---
 
-## 工具一览 (39 tools)
+## ⚡ 快速开始 (30秒)
+
+```bash
+git clone https://github.com/99-sketch/vuln-research-mcp.git
+cd vuln-research-mcp
+docker compose up -d
+```
+
+打开浏览器访问 **http://localhost:8080** → 🎉 完成！
+
+> 📖 **零基础用户**请看: [5 分钟上手指南](docs/BEGINNER.md) | 不需要懂编程, 不需要装 Python。
 
 ### v1.0 基础安全工具 (15)
 

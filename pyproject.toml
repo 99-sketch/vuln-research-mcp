@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vuln-research-mcp"
-version = "5.1.0"
-description = "Vulnerability Research MCP Server v5.1 - Cross-Platform Enterprise Security Platform (CN+CVE+Compliance+550Fingerprints)"
+version = "5.2.0"
+description = "Vulnerability Research MCP — 企业级安全平台 (Web UI + Docker一键部署 + 零命令行操作)"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -31,6 +31,9 @@ dependencies = [
     "fastapi>=0.100.0,<1.0",
     "uvicorn>=0.23.0,<1.0",
     "pydantic>=2.0,<3.0",
+    "jinja2>=3.0,<4.0",
+    "python-multipart>=0.0.5",
+    "aiofiles>=23.0",
 ]
 
 [project.optional-dependencies]
@@ -48,6 +51,9 @@ all = ["neo4j>=5.0,<6.0"]
 
 [project.scripts]
 vuln-research-mcp = "src.server:main"
+vuln-wizard = "src.cli_wizard:main"
+vuln-web = "src.webui.app:main"
+vuln-api = "src.webui.api_server:main"
 
 [tool.setuptools.packages.find]
 include = ["src*"]

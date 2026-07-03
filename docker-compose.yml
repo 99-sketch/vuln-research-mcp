@@ -1,0 +1,90 @@
+# =============================================================================
+# Vuln-Research-MCP v5.2 — 一键部署 (小白友好)
+# 
+# 使用方法:
+#   docker compose up -d          # 后台启动所有服务
+#   docker compose up             # 前台启动(查看日志)
+#   docker compose down           # 停止所有服务
+#   docker compose logs -f web    # 查看 Web 界面日志
+#
+# 访问地址:
+#   Web 界面:  http://localhost:8080
+#   REST API:  http://localhost:8765/docs
+#   MCP 服务:  stdio (通过 Docker exec)
+#   Neo4j:     http://localhost:7474 (可选, 需要知识图谱功能时启用)
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ---------- 主服务: Web UI + REST API + MCP ----------
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vuln-research-web
+    restart: unless-stopped
+    ports:
+      - "8080:8080"    # Web 界面
+      - "8765:8765"    # REST API
+    environment:
+      - NVD_API_KEY=${NVD_API_KEY:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - CACHE_ENABLED=true
+      - CORS_ORIGINS=http://localhost:8080
+      # 钉钉告警 (可选)
+      - DINGTALK_WEBHOOK=${DINGTALK_WEBHOOK:-}
+      # 邮箱告警 (可选)
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - ALERT_EMAIL=${ALERT_EMAIL:-}
+      # API 认证 (可选)
+      - API_AUTH_TOKEN=${API_AUTH_TOKEN:-}
+      # 内网扫描 (默认阻断)
+      - INTRANET_BLOCK=${INTRANET_BLOCK:-true}
+      - SCAN_MAX_HOSTS=${SCAN_MAX_HOSTS:-5}
+      - SCAN_MAX_PORTS=${SCAN_MAX_PORTS:-100}
+    volumes:
+      # 持久化数据 (数据库、缓存、报告)
+      - vuln_data:/app/data
+      # 本地配置文件 (可选)
+      - ./config.yaml:/app/config.yaml:ro
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - vuln-net
+
+  # ---------- Neo4j 知识图谱 (可选, 取消注释启用) ----------
+  # neo4j:
+  #   image: neo4j:5-community
+  #   container_name: vuln-research-neo4j
+  #   restart: unless-stopped
+  #   ports:
+  #     - "7474:7474"   # HTTP
+  #     - "7687:7687"   # Bolt
+  #   environment:
+  #     - NEO4J_AUTH=neo4j/password123
+  #     - NEO4J_PLUGINS=["apoc", "graph-data-science"]
+  #   volumes:
+  #     - neo4j_data:/data
+  #     - neo4j_logs:/logs
+  #   networks:
+  #     - vuln-net
+
+volumes:
+  vuln_data:
+    driver: local
+  # neo4j_data:
+  #   driver: local
+  # neo4j_logs:
+  #   driver: local
+
+networks:
+  vuln-net:
+    driver: bridge

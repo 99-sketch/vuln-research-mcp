@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}仪表盘 - Vuln-Research-MCP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>📊 仪表盘</h1>
+  <p class="subtitle">欢迎使用企业级安全平台 — 所有操作在浏览器中完成, 无需命令行</p>
+</div>
+
+<!-- 统计卡片 -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon">🧰</div>
+    <div class="stat-num">{{ stats.total_tools }}</div>
+    <div class="stat-label">可用工具</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">🖐️</div>
+    <div class="stat-num">{{ stats.fingerprints }}</div>
+    <div class="stat-label">产品指纹</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">🛡️</div>
+    <div class="stat-num">7层</div>
+    <div class="stat-label">纵深防御</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">🖥️</div>
+    <div class="stat-num">全平台</div>
+    <div class="stat-label">Win/Mac/Linux</div>
+  </div>
+</div>
+
+<!-- 快捷操作 -->
+<h2>⚡ 快捷操作</h2>
+<div class="quick-actions">
+  <a href="/cve" class="action-card">
+    <span class="action-icon">🔍</span>
+    <span class="action-title">CVE 查询</span>
+    <span class="action-desc">查漏洞详情、评分、影响版本</span>
+  </a>
+  <a href="/scan" class="action-card">
+    <span class="action-icon">🎯</span>
+    <span class="action-title">端口扫描</span>
+    <span class="action-desc">检测目标开放端口与服务</span>
+  </a>
+  <a href="/report" class="action-card">
+    <span class="action-icon">📝</span>
+    <span class="action-title">生成报告</span>
+    <span class="action-desc">一键生成渗透测试报告</span>
+  </a>
+  <a href="/tools" class="action-card">
+    <span class="action-icon">🧰</span>
+    <span class="action-title">全部工具</span>
+    <span class="action-desc">浏览 55+ 安全工具</span>
+  </a>
+</div>
+
+<!-- 安全架构 -->
+<h2>🔐 安全架构 (7层纵深防御)</h2>
+<div class="arch-layers">
+  {% for layer in ['AST 净化','内网阻断','RBAC 守卫','人工审批','权限检测','数据清洗','审计日志'] %}
+  <div class="layer-chip">{{ layer }}</div>
+  {% if not loop.last %}<span class="layer-arrow">→</span>{% endif %}
+  {% endfor %}
+</div>
+
+{% endblock %}
