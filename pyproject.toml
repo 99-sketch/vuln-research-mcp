@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vuln-research-mcp"
-version = "4.1.0"
-description = "Vulnerability Research MCP Server v4.1 - Penetration Testing Infrastructure Component (Security Hardened)"
+version = "4.5.0"
+description = "Vulnerability Research MCP Server v4.5 - Penetration Testing Infrastructure Component (CN-Friendly Deployment)"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"

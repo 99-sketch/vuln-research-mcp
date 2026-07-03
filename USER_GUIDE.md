@@ -1,6 +1,6 @@
 # vuln-research-mcp 使用手册 & 教程
 
-> v4.0.0 | 渗透测试工具链基础设施级组件
+> v4.5.0 | 渗透测试工具链基础设施级组件 (国内环境友好)
 
 ---
 
@@ -12,7 +12,7 @@
 4. [YAML 管道教程](#4-yaml-管道教程)
 5. [REST API 教程](#5-rest-api-教程)
 6. [渗透测试场景实战](#6-渗透测试场景实战)
-7. [Docker 部署](#7-docker-部署)
+7. [生产部署](#7-生产部署)
 8. [自定义管道](#8-自定义管道)
 9. [常见问题](#9-常见问题)
 
@@ -37,7 +37,7 @@ pip install -e .
 
 ```bash
 python -m src.server --version
-# 输出: vuln-research-mcp v4.0.0
+# 输出: vuln-research-mcp v4.5.0
 ```
 
 ### 创建配置文件
@@ -444,29 +444,96 @@ curl http://localhost:8000/api/projects/1/report?format=markdown \
 
 ---
 
-## 7. Docker 部署
+## 7. 生产部署
 
-### 使用 docker-compose (推荐)
+> 🔧 国内环境专用 — 不使用 Docker，全部基于 Python 原生生态
 
-```bash
-docker-compose up -d
-```
-
-### 手动构建
+### 个人开发机 (pipx)
 
 ```bash
-docker build -t vuln-research-mcp .
-docker run -i --rm -e NVD_API_KEY=your-key vuln-research-mcp
+# 安装 pipx（清华镜像）
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple pipx
+pipx ensurepath
+
+# 安装项目
+cd /path/to/vuln-research-mcp
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -e .
 ```
 
-### Docker 镜像包含
+### Linux 服务器 (Supervisor)
 
-- Python 3.10+ 运行环境
-- nmap (端口扫描)
-- searchsploit (Exploit-DB 本地搜索)
-- sublist3r / amass (子域名枚举)
-- nuclei (漏洞扫描模板)
-- msfconsole (Metasploit)
+```bash
+# 1. 克隆 + 安装
+git clone https://github.com/99-sketch/vuln-research-mcp.git /opt/vulnmcp
+cd /opt/vulnmcp
+python3 -m venv venv
+venv/bin/pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -e . supervisor
+
+# 2. 创建专用用户
+sudo useradd -r -s /bin/false -d /opt/vulnmcp vulnmcp
+sudo chown -R vulnmcp:vulnmcp /opt/vulnmcp
+
+# 3. Supervisor 配置 (/etc/supervisor/conf.d/vulnmcp.conf)
+sudo tee /etc/supervisor/conf.d/vulnmcp.conf << 'EOF'
+[program:vulnmcp]
+command=/opt/vulnmcp/venv/bin/python -m src.server
+directory=/opt/vulnmcp
+user=vulnmcp
+autostart=true
+autorestart=true
+environment=NVD_API_KEY="",LOG_LEVEL="WARNING"
+EOF
+
+# 4. 启动
+sudo supervisorctl reread && sudo supervisorctl update
+sudo supervisorctl start vulnmcp
+sudo supervisorctl status vulnmcp
+```
+
+### Linux 服务器 (systemd)
+
+```bash
+sudo tee /etc/systemd/system/vulnmcp.service << 'EOF'
+[Unit]
+Description=Vulnerability Research MCP Server
+After=network.target
+
+[Service]
+Type=simple
+User=vulnmcp
+Environment=NVD_API_KEY=
+Environment=LOG_LEVEL=WARNING
+WorkingDirectory=/opt/vulnmcp
+ExecStart=/opt/vulnmcp/venv/bin/python -m src.server
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now vulnmcp
+```
+
+### Windows Server (nssm)
+
+```powershell
+# 1. 安装项目
+cd C:\vulnmcp
+python -m venv venv
+.\venv\Scripts\pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -e .
+
+# 2. 下载 nssm: https://nssm.cc/download
+
+# 3. 安装服务
+nssm install VulnMcp "C:\vulnmcp\venv\Scripts\python.exe" "-m" "src.server"
+nssm set VulnMcp AppDirectory "C:\vulnmcp"
+nssm set VulnMcp AppEnvironmentExtra "NVD_API_KEY=your-key"
+nssm set VulnMcp Start SERVICE_AUTO_START
+nssm start VulnMcp
+```
+
+> 📖 完整部署指南（健康检查/日志管理/备份恢复/故障排查）: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ---
 

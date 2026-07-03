@@ -19,10 +19,10 @@ sudo useradd -r -s /bin/false vulnmcp
 # ❌ 不要在生产服务器上安装 metasploit
 # ✅ 仅安装 nmap, searchsploit (只读模式)
 
-# 3. Docker 部署（推荐）
-docker run --read-only --tmpfs /tmp \
-  -v ./config.yaml:/app/config.yaml:ro \
-  vuln-research-mcp:4.1
+# 3. 虚拟环境隔离部署（推荐）
+python3 -m venv /opt/vulnmcp/venv
+/opt/vulnmcp/venv/bin/pip install -e .
+sudo chown -R vulnmcp:vulnmcp /opt/vulnmcp
 ```
 
 ### 配置文件安全

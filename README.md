@@ -1,17 +1,17 @@
 # vuln-research-mcp
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-4.1.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-4.5.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/python-3.10_|_3.11_|_3.12-blue.svg" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/tools-39-orange.svg" alt="Tools">
-  <img src="https://img.shields.io/badge/security_hardened-v4.1-red.svg" alt="Security">
+  <img src="https://img.shields.io/badge/security_hardened-v4.5-red.svg" alt="Security">
   <img src="https://img.shields.io/badge/tests-363%20passed-brightgreen.svg" alt="Tests">
 </p>
 
-> **渗透测试工具链基础设施级组件** — Vulnerability Research MCP Server v4.1 (Security Hardened)
+> **渗透测试工具链基础设施级组件** — Vulnerability Research MCP Server v4.5 (No Docker, CN Friendly)
 >
-> 39 个工具 | 事件总线 | SQLite 持久层 | 资产-漏洞关联引擎 | YAML 管道编排 | MITRE ATT&CK 映射 | REST API | 安全加固 (v4.1)
+> 39 个工具 | 事件总线 | SQLite 持久层 | 资产-漏洞关联引擎 | YAML 管道编排 | MITRE ATT&CK 映射 | REST API | 安全加固 | 国内友好部署
 
 ---
 
@@ -190,7 +190,7 @@ src/
 | `Tool Guard` | 工具权限 | 5 级风险分类 (read_only→system)、频率限制、哈希校验 |
 | `Log Redaction` | 日志脱敏 | 自动替换 API Key、Token、密码等敏感信息 |
 
-> 📖 完整安全加固指南: [docs/SECURITY.md](docs/SECURITY.md) | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+> 📖 完整安全加固指南: [docs/SECURITY.md](docs/SECURITY.md) | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)（国内环境友好部署）
 
 ---
 
@@ -240,16 +240,23 @@ python -c "from src.core.config_manager import create_default_config; create_def
 }
 ```
 
-### Docker 部署
+### 快速部署
 
 ```bash
-# 一键启动
-docker-compose up -d
+# 方式 1: pipx 独立安装（推荐个人使用）
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple pipx
+pipx install -e .
 
-# 或手动构建
-docker build -t vuln-research-mcp .
-docker run -i --rm -e NVD_API_KEY=your-key vuln-research-mcp
+# 方式 2: 虚拟环境（推荐生产环境）
+python3 -m venv venv && source venv/bin/activate
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -e .
+
+# 方式 3: Windows 一键
+python -m venv venv && .\venv\Scripts\activate
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -e .
 ```
+
+> 📖 完整部署指南（Supervisor/systemd/nssm/Windows 服务）: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ---
 

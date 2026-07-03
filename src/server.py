@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Vulnerability Research MCP Server v4.1.0
+Vulnerability Research MCP Server v4.5.0
 Penetration Testing Infrastructure Component
 
 v4.0 Architecture (Layered):
@@ -90,7 +90,7 @@ from src.security.tool_guard import ToolGuard, ToolRiskLevel, create_tool_guard
 from src.security.target_policy import TargetPolicy, ScanLimitPolicy, create_default_policy
 from src.security.key_manager import SecureKeyManager, create_key_manager
 
-__version__ = "4.1.0"
+__version__ = "4.5.0"
 
 # ---------- State ----------
 

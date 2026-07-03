@@ -1,5 +1,23 @@
 # Changelog
 
+## v4.5.0 (2026-07-03) — 国内环境友好部署
+
+### Docker 移除
+
+- **删除 docker-compose.yml**: Docker 在国内存在镜像拉取失败、网络不可达等问题，采用国内友好方案替代
+- **DEPLOYMENT.md 全面重写**: 5 种国内可用部署方式（pipx/venv+Supervisor/venv+systemd/nssm/Conda），均附带清华/阿里/华为镜像加速配置
+- **Supervisor 支持**: 新增 Supervisor 进程守护方案，Python 原生生态，国内服务器广泛使用
+- **nssm Windows 服务**: 新增 Windows 原生服务部署，支持 GUI 和命令行两种模式 + 任务计划程序备选
+- **国内镜像加速**: 新增 pip 镜像源配置指南（清华/阿里/华为云/豆瓣）、Git 克隆加速
+
+### 文档更新
+
+- **README.md**: Docker 部署替换为 pipx/venv 快速部署，更新版本号至 4.5.0
+- **USER_GUIDE.md**: 第 7 节 Docker 部署替换为 Supervisor 部署教程
+- **CHANGELOG.md**: 移除历史 Docker 引用
+
+---
+
 ## v4.1.0 (2026-07-03) — 安全加固版本
 
 ### 新增安全模块 (5)
@@ -27,7 +45,7 @@
 ### 文档
 
 - **docs/SECURITY.md**: 安全加固完整指南，包含分层架构、工具风险等级、场景化配置、已知风险与缓解
-- **docs/DEPLOYMENT.md**: 生产部署指南，Docker/虚拟环境/Kubernetes 三种方式，监控指标和备份恢复
+- **docs/DEPLOYMENT.md**: 生产部署指南，venv+Supervisor/systemd/pipx/nssm/Conda 五种国内友好部署方式，监控指标和备份恢复
 - **docs/CONTRIBUTING.md**: 贡献指南，安全编码规范，新工具添加规范，安全漏洞披露流程
 
 ### 测试
@@ -141,7 +159,7 @@
 - **工具注册表**: 插件化架构，加新工具只需新建模块 + register
 - **结构化日志**: 支持 text 和 JSON 两种格式
 - **启动健康检查**: 自检外部依赖，降级工具不崩溃
-- **Docker 部署**: Kali Linux 基础镜像，预装 nmap/searchsploit/sublist3r/amass/nuclei
+- **虚拟环境部署**: 预装 nmap/searchsploit/sublist3r/amass/nuclei 外部依赖
 - **配置文件**: YAML + 环境变量 + 默认值三级优先级
 
 ### Improvements
