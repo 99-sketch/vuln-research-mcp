@@ -7,7 +7,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="vuln-research-mcp",
-    version="0.2.0",
+    version="1.0.0",
     author="Penetration Testing Expert Agent",
     description="Vulnerability Research MCP Server for Penetration Testers",
     long_description=long_description,
@@ -37,7 +37,7 @@ setup(
         ],
     },
     classifiers=[
-        "Development Status :: 4 - Beta",
+        "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Information Technology",
         "Topic :: Security",
         "Programming Language :: Python :: 3.10",

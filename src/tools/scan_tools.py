@@ -1,13 +1,39 @@
 # src/tools/scan_tools.py
-"""端口扫描与子域名枚举工具"""
+"""端口扫描与子域名枚举工具 - 含版本检测"""
 
 import logging
 import subprocess
 import os
 import tempfile
+import shutil
 from ..validators import validate_target, validate_ports, sanitize_subprocess_arg
 
 logger = logging.getLogger("vuln-research-mcp")
+
+
+def _check_tool_version(tool_name: str) -> dict:
+    """检测外部工具是否安装及其版本"""
+    path = shutil.which(tool_name)
+    if not path:
+        return {"installed": False, "version": None, "path": None}
+    
+    try:
+        if tool_name == "nmap":
+            result = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=5)
+            version_line = result.stdout.split("\n")[0] if result.stdout else ""
+            return {"installed": True, "version": version_line.strip(), "path": path}
+        elif tool_name == "searchsploit":
+            result = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=5)
+            return {"installed": True, "version": result.stdout.strip(), "path": path}
+        elif tool_name == "sublist3r":
+            result = subprocess.run([path, "--help"], capture_output=True, text=True, timeout=5)
+            return {"installed": True, "version": "unknown", "path": path}
+        elif tool_name == "amass":
+            result = subprocess.run([path, "version"], capture_output=True, text=True, timeout=5)
+            return {"installed": True, "version": result.stdout.strip(), "path": path}
+    except Exception:
+        pass
+    return {"installed": True, "version": "unknown", "path": path}
 
 
 async def scan_ports(target: str, ports: str = None, scan_type: str = "quick") -> dict:
@@ -18,6 +44,19 @@ async def scan_ports(target: str, ports: str = None, scan_type: str = "quick") -
 
     if scan_type not in ("quick", "full", "stealth", "version"):
         scan_type = "quick"
+
+    # 版本检测
+    tool_info = _check_tool_version("nmap")
+    if not tool_info["installed"]:
+        return {
+            "error": "nmap 未安装",
+            "installation": [
+                "Kali/Debian: sudo apt install nmap",
+                "macOS: brew install nmap",
+                "Windows: https://nmap.org/download.html",
+            ],
+            "target": target,
+        }
 
     try:
         cmd = ["nmap"]
@@ -36,7 +75,7 @@ async def scan_ports(target: str, ports: str = None, scan_type: str = "quick") -
 
         cmd.append(target)
 
-        logger.info(f"执行 nmap 命令: {' '.join(cmd)}")
+        logger.info(f"执行 nmap: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
 
         if result.returncode == 0:
@@ -46,24 +85,15 @@ async def scan_ports(target: str, ports: str = None, scan_type: str = "quick") -
                 "ports": ports or "default",
                 "output": result.stdout,
                 "status": "success",
+                "nmap_version": tool_info["version"],
             }
         else:
             return {
                 "target": target,
                 "error": "nmap 执行失败",
                 "stderr": result.stderr[:500],
-                "installation_hint": "Windows: https://nmap.org/download.html\nKali: sudo apt install nmap\nmacOS: brew install nmap",
+                "nmap_version": tool_info["version"],
             }
-    except FileNotFoundError:
-        return {
-            "error": "nmap 未安装",
-            "installation": [
-                "Kali/Debian: sudo apt install nmap",
-                "macOS: brew install nmap",
-                "Windows: https://nmap.org/download.html",
-            ],
-            "target": target,
-        }
     except subprocess.TimeoutExpired:
         return {
             "error": "nmap 扫描超时（5分钟）",
@@ -85,51 +115,9 @@ async def enumerate_subdomains(domain: str, tool: str = "sublist3r") -> dict:
     if tool not in ("sublist3r", "amass"):
         tool = "sublist3r"
 
-    try:
-        if tool == "sublist3r":
-            # 使用跨平台的临时文件路径
-            tmp_dir = tempfile.gettempdir()
-            output_file = os.path.join(tmp_dir, "subdomains.txt")
-
-            cmd = ["sublist3r", "-d", domain, "-o", output_file]
-
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-
-            subdomains = []
-            if os.path.exists(output_file):
-                with open(output_file, "r", encoding="utf-8", errors="ignore") as f:
-                    subdomains = [line.strip() for line in f if line.strip()]
-                # 清理临时文件
-                try:
-                    os.remove(output_file)
-                except OSError:
-                    pass
-
-            return {
-                "domain": domain,
-                "tool": tool,
-                "total_found": len(subdomains),
-                "subdomains": subdomains[:50],
-                "output": result.stdout[:2000] if result.stdout else "",
-                "source": "sublist3r",
-            }
-
-        elif tool == "amass":
-            cmd = ["amass", "enum", "-passive", "-d", domain]
-
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-
-            subdomains = [line.strip() for line in result.stdout.split("\n") if line.strip()]
-
-            return {
-                "domain": domain,
-                "tool": tool,
-                "total_found": len(subdomains),
-                "subdomains": subdomains[:50],
-                "source": "amass",
-            }
-
-    except FileNotFoundError:
+    # 版本检测
+    tool_info = _check_tool_version(tool)
+    if not tool_info["installed"]:
         install_cmds = {
             "sublist3r": [
                 "pip install sublist3r",
@@ -146,6 +134,51 @@ async def enumerate_subdomains(domain: str, tool: str = "sublist3r") -> dict:
             "installation": install_cmds.get(tool, ["请查看工具官方文档"]),
             "domain": domain,
         }
+
+    try:
+        if tool == "sublist3r":
+            tmp_dir = tempfile.gettempdir()
+            output_file = os.path.join(tmp_dir, f"sublist3r_{domain}.txt")
+
+            cmd = ["sublist3r", "-d", domain, "-o", output_file]
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+
+            subdomains = []
+            if os.path.exists(output_file):
+                with open(output_file, "r", encoding="utf-8", errors="ignore") as f:
+                    subdomains = [line.strip() for line in f if line.strip()]
+                try:
+                    os.remove(output_file)
+                except OSError:
+                    pass
+
+            return {
+                "domain": domain,
+                "tool": tool,
+                "tool_version": tool_info["version"],
+                "total_found": len(subdomains),
+                "subdomains": subdomains[:50],
+                "output": result.stdout[:2000] if result.stdout else "",
+                "source": "sublist3r",
+            }
+
+        elif tool == "amass":
+            cmd = ["amass", "enum", "-passive", "-d", domain]
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+
+            subdomains = [line.strip() for line in result.stdout.split("\n") if line.strip()]
+
+            return {
+                "domain": domain,
+                "tool": tool,
+                "tool_version": tool_info["version"],
+                "total_found": len(subdomains),
+                "subdomains": subdomains[:50],
+                "source": "amass",
+            }
+
     except subprocess.TimeoutExpired:
         return {
             "error": f"{tool} 枚举超时（5分钟）",

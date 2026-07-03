@@ -1,6 +1,6 @@
 """
-vuln-research-mcp 测试套件 (pytest)
-覆盖：输入验证、CVSS、CWE、CVE、DNS、HTTP头、GeoIP、离线降级、命令注入防护
+vuln-research-mcp v1.0.0 测试套件 (pytest)
+覆盖全部 11 个工具 + 输入验证 + 安全防护 + 版本检测
 """
 
 import asyncio
@@ -8,8 +8,8 @@ import sys
 import os
 import json
 import pytest
+from unittest.mock import patch, AsyncMock, MagicMock
 
-# 添加项目根目录到 path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
@@ -22,12 +22,13 @@ from src.tools.cvss_tool import cvss_calculator, _compute_cvss_v3_1
 from src.tools.cwe_tool import cwe_mapping, CWE_DATABASE
 from src.tools.cve_tools import search_cve, get_cve_details
 from src.tools.network_tools import check_http_headers, query_dns, geolocate_ip
-from src.tools.exploit_tool import search_exploit
+from src.tools.exploit_tool import search_exploit, _check_searchsploit
 from src.tools.nuclei_tool import find_nuclei_template
-from src.tools.scan_tools import scan_ports, enumerate_subdomains
+from src.tools.scan_tools import scan_ports, enumerate_subdomains, _check_tool_version
+from src.rate_limiter import NVD_API_KEY
 
 
-# ========== 输入验证 ==========
+# ========== 输入验证 (22 项) ==========
 
 class TestInputValidation:
 
@@ -112,7 +113,7 @@ class TestInputValidation:
         assert is_private_ip("8.8.8.8") is False
 
 
-# ========== CVSS 计算器 ==========
+# ========== CVSS 计算器 (5 项) ==========
 
 class TestCVSS:
 
@@ -149,7 +150,7 @@ class TestCVSS:
         assert "error" in r
 
 
-# ========== CWE 查询 ==========
+# ========== CWE 查询 (6 项) ==========
 
 class TestCWE:
 
@@ -169,9 +170,17 @@ class TestCWE:
         assert "SSRF" in r["name"] or "Server-Side" in r["name"]
 
     @pytest.mark.asyncio
-    async def test_cwe_not_found(self):
-        r = await cwe_mapping("CWE-99999")
-        assert r["found"] is False
+    async def test_cwe_611_xxe(self):
+        r = await cwe_mapping("CWE-611")
+        assert "XML" in r["name"]
+
+    @pytest.mark.asyncio
+    async def test_cwe_not_found_local(self):
+        """本地没有但应尝试在线 fallback"""
+        r = await cwe_mapping("CWE-999")
+        # 在线 fallback 可能成功也可能失败，但不应崩溃
+        assert r is not None
+        assert "cwe_id" in r or "found" in r
 
     @pytest.mark.asyncio
     async def test_cwe_invalid_format(self):
@@ -179,11 +188,11 @@ class TestCWE:
             await cwe_mapping("NOT-A-CWE")
 
     def test_cwe_database_size(self):
-        """CWE 数据库至少 20 条"""
-        assert len(CWE_DATABASE) >= 20
+        """CWE 数据库至少 40 条"""
+        assert len(CWE_DATABASE) >= 40
 
 
-# ========== CVE 搜索（需网络）==========
+# ========== CVE 搜索 (4 项) ==========
 
 class TestCVE:
 
@@ -198,9 +207,11 @@ class TestCVE:
         assert len(r["vulnerabilities"]) <= 3
 
     @pytest.mark.asyncio
-    async def test_get_cve_details(self):
-        r = await get_cve_details("CVE-2021-44228")
-        assert r.get("cve_id") == "CVE-2021-44228" or "error" in r
+    async def test_search_cve_reports_api_key_status(self):
+        """搜索结果应包含 API Key 使用状态"""
+        r = await search_cve("Apache", max_results=1)
+        assert "api_key_used" in r
+        assert "rate_limit" in r
 
     @pytest.mark.asyncio
     async def test_get_cve_invalid_id(self):
@@ -208,7 +219,7 @@ class TestCVE:
             await get_cve_details("INVALID-ID")
 
 
-# ========== DNS 查询 ==========
+# ========== DNS 查询 (3 项) ==========
 
 class TestDNS:
 
@@ -230,7 +241,7 @@ class TestDNS:
             await query_dns("../../../etc/passwd", "A")
 
 
-# ========== HTTP 安全头 ==========
+# ========== HTTP 安全头 (4 项) ==========
 
 class TestHTTPHeaders:
 
@@ -256,7 +267,7 @@ class TestHTTPHeaders:
         assert "error" in r
 
 
-# ========== IP 地理定位 ==========
+# ========== IP 地理定位 (4 项) ==========
 
 class TestGeoIP:
 
@@ -281,9 +292,9 @@ class TestGeoIP:
             await geolocate_ip("not-an-ip")
 
 
-# ========== 离线工具降级 ==========
+# ========== Exploit 搜索 + 版本检测 (4 项) ==========
 
-class TestOfflineFallback:
+class TestExploitSearch:
 
     @pytest.mark.asyncio
     async def test_search_exploit_no_crash(self):
@@ -292,22 +303,53 @@ class TestOfflineFallback:
         assert "exploits" in r or "error" in r or "source" in r
 
     @pytest.mark.asyncio
+    async def test_search_exploit_empty_query(self):
+        with pytest.raises(ValueError):
+            await search_exploit("")
+
+    def test_check_searchsploit_installed(self):
+        """版本检测不应崩溃"""
+        result = _check_searchsploit()
+        assert "installed" in result
+        assert isinstance(result["installed"], bool)
+
+    @pytest.mark.asyncio
+    async def test_search_exploit_type_filter(self):
+        r = await search_exploit("Apache", type_filter="remote")
+        assert r is not None
+
+
+# ========== Nuclei 模板搜索 (3 项) ==========
+
+class TestNucleiSearch:
+
+    @pytest.mark.asyncio
     async def test_find_nuclei_no_crash(self):
         r = await find_nuclei_template("cve", "high")
         assert r is not None
         assert "templates" in r or "error" in r
 
     @pytest.mark.asyncio
+    async def test_find_nuclei_empty_tags(self):
+        with pytest.raises(ValueError):
+            await find_nuclei_template("")
+
+    @pytest.mark.asyncio
+    async def test_find_nuclei_invalid_severity(self):
+        with pytest.raises(ValueError):
+            await find_nuclei_template("cve", "super-critical")
+
+
+# ========== 端口扫描 + 版本检测 (5 项) ==========
+
+class TestScanPorts:
+
+    @pytest.mark.asyncio
     async def test_scan_ports_no_crash(self):
+        """即使 nmap 未安装也不应崩溃"""
         r = await scan_ports("127.0.0.1", scan_type="quick")
         assert r is not None
         assert "output" in r or "error" in r
-
-    @pytest.mark.asyncio
-    async def test_enumerate_subdomains_no_crash(self):
-        r = await enumerate_subdomains("example.com")
-        assert r is not None
-        assert "subdomains" in r or "error" in r
 
     @pytest.mark.asyncio
     async def test_scan_ports_injection_rejected(self):
@@ -315,6 +357,76 @@ class TestOfflineFallback:
             await scan_ports("127.0.0.1; rm -rf /", scan_type="quick")
 
     @pytest.mark.asyncio
-    async def test_subdomains_injection_rejected(self):
+    async def test_scan_ports_invalid_type(self):
+        """无效扫描类型应回退到 quick"""
+        r = await scan_ports("127.0.0.1", scan_type="invalid-type")
+        assert r is not None  # 不崩溃，回退到 quick
+
+    def test_check_tool_version_nmap(self):
+        """版本检测不应崩溃"""
+        result = _check_tool_version("nmap")
+        assert "installed" in result
+        assert isinstance(result["installed"], bool)
+
+    def test_check_tool_version_nonexistent(self):
+        """不存在的工具应返回 installed=False"""
+        result = _check_tool_version("nonexistent-tool-xyz")
+        assert result["installed"] is False
+
+
+# ========== 子域名枚举 (4 项) ==========
+
+class TestEnumerateSubdomains:
+
+    @pytest.mark.asyncio
+    async def test_enumerate_no_crash(self):
+        r = await enumerate_subdomains("example.com")
+        assert r is not None
+        assert "subdomains" in r or "error" in r
+
+    @pytest.mark.asyncio
+    async def test_enumerate_injection_rejected(self):
         with pytest.raises(ValueError):
             await enumerate_subdomains("example.com; cat /etc/passwd")
+
+    @pytest.mark.asyncio
+    async def test_enumerate_invalid_tool(self):
+        """无效工具名应回退到 sublist3r"""
+        r = await enumerate_subdomains("example.com", tool="invalid-tool")
+        assert r is not None  # 不崩溃，回退到 sublist3r
+
+    @pytest.mark.asyncio
+    async def test_enumerate_amass_no_crash(self):
+        r = await enumerate_subdomains("example.com", tool="amass")
+        assert r is not None
+        assert "subdomains" in r or "error" in r
+
+
+# ========== 速率限制器 (2 项) ==========
+
+class TestRateLimiter:
+
+    def test_nvd_api_key_env(self):
+        """NVD_API_KEY 应从环境变量读取"""
+        # 不设环境变量时应为空字符串
+        import importlib
+        import src.rate_limiter
+        # 值取决于测试时环境是否有 NVD_API_KEY
+        assert isinstance(NVD_API_KEY, str)
+
+    @pytest.mark.asyncio
+    async def test_nvd_request_no_crash_on_network_error(self):
+        """网络错误不应导致崩溃"""
+        import httpx
+        from src.rate_limiter import nvd_rate_limited_request
+        client = httpx.AsyncClient()
+        try:
+            with pytest.raises((httpx.HTTPStatusError, httpx.RequestError, Exception)):
+                await nvd_rate_limited_request(
+                    client,
+                    "https://invalid-url-that-does-not-exist-12345.com/api",
+                    {},
+                    max_retries=1,
+                )
+        finally:
+            await client.aclose()

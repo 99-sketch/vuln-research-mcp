@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Vulnerability Research MCP Server v0.2.0
-模块化架构：server.py = 路由层，tools/ = 实现层，validators/ = 安全校验层
+Vulnerability Research MCP Server v1.0.0
+模块化架构：server.py = 路由层，tools/ = 实现层，validators/ = 安全校验层，rate_limiter = 速率控制
 """
 
 import asyncio
@@ -184,7 +184,7 @@ async def list_tools() -> list[Tool]:
 
 @server.call_tool()
 async def call_tool(name: str, arguments: Any) -> list[TextContent]:
-    logger.info(f"工具调用: {name}, 参数: {arguments}")
+    logger.info(f"工具调用: {name}")  # 不记录参数，避免日志泄露敏感信息
 
     handler = TOOL_HANDLERS.get(name)
     if not handler:
@@ -205,7 +205,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
 # ---------- 主函数 ----------
 
 async def main():
-    logger.info("Vulnerability Research MCP Server v0.2.0 启动中...")
+    logger.info("Vulnerability Research MCP Server v1.0.0 启动中...")
     async with stdio_server() as (read_stream, write_stream):
         await server.run(read_stream, write_stream, server.create_initialization_options())
 
