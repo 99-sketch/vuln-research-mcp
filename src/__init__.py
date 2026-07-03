@@ -1,1 +1,2 @@
-"""Vulnerability Research MCP Server package."""
+# src/__init__.py
+"""vuln-research-mcp package"""

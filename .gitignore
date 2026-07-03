@@ -42,6 +42,7 @@ Thumbs.db
 /tmp/
 test_local.py
 test_v011.py
+test_v02.py
 
 # Logs
 *.log

@@ -4,31 +4,57 @@
 
 整合多个漏洞数据源，提供统一的漏洞研究接口。
 
-当前版本：**v0.1.1**
+当前版本：**v0.2.0**
 
 ---
 
-## 🚀 功能特性
+## v0.2.0 重构亮点
 
-### 核心工具（11个）
-
-| 工具名称 | 功能 | 数据源 |
-|---------|------|--------|
-| `search_cve` | 搜索 CVE 漏洞 | NVD API |
-| `get_cve_details` | 获取 CVE 详细信息 | NVD API |
-| `search_exploit` | 搜索 PoC/EXP | Exploit-DB |
-| `cvss_calculator` | CVSS v3.1 评分计算（符合 FIRST 规范） | CVSS 标准 |
-| `cwe_mapping` | 查询 CWE 分类（本地 18 类常见漏洞） | MITRE CWE |
-| `find_nuclei_template` | 查找 Nuclei 模板 | Nuclei Templates |
-| `scan_ports` | 端口扫描（nmap） | 本地 nmap |
-| `enumerate_subdomains` | 子域名枚举（sublist3r/amass） | 本地工具 |
-| `check_http_headers` | HTTP 安全头检查 | 目标站点 |
-| `query_dns` | DNS 记录查询 | DNS 服务器 |
-| `geolocate_ip` | IP 地理位置查询 | ip-api.com |
+- **模块化架构**：server.py 路由层 + tools/ 实现层 + validators/ 安全校验层
+- **安全防护**：全参数输入校验、命令注入防护、SSRF 防护、路径遍历防护
+- **在线降级**：search_exploit 和 find_nuclei_template 无本地工具时自动切换在线 API
+- **54 项自测全部通过**
 
 ---
 
-## 📦 安装
+## 工具清单（11个）
+
+| 工具 | 功能 | 可用性 | 数据源 |
+|------|------|--------|--------|
+| `search_cve` | 搜索 CVE 漏洞 | 开箱即用 | NVD API |
+| `get_cve_details` | 获取 CVE 详细信息 | 开箱即用 | NVD API |
+| `cvss_calculator` | CVSS v3.1 评分（FIRST 规范） | 开箱即用 | 内置算法 |
+| `cwe_mapping` | 查询 CWE 分类（20 条） | 开箱即用 | 本地数据库 |
+| `check_http_headers` | HTTP 安全头检查 | 开箱即用 | 目标站点 |
+| `query_dns` | DNS 记录查询 | 开箱即用 | dnspython |
+| `geolocate_ip` | IP 地理位置查询 | 开箱即用 | ip-api.com |
+| `search_exploit` | 搜索 PoC/EXP | 在线优先 + 本地降级 | Exploit-DB API / searchsploit |
+| `find_nuclei_template` | 查找 Nuclei 模板 | 在线优先 + 本地降级 | GitHub API / 本地模板 |
+| `scan_ports` | 端口扫描 | 需安装 nmap | nmap |
+| `enumerate_subdomains` | 子域名枚举 | 需安装 sublist3r/amass | sublist3r / amass |
+
+---
+
+## 架构
+
+```
+src/
+  server.py              # 路由层：工具注册 + 调用分发 + 错误处理
+  tools/
+    cve_tools.py          # CVE 搜索与详情
+    cvss_tool.py          # CVSS v3.1 评分计算
+    cwe_tool.py           # CWE 漏洞类型查询
+    exploit_tool.py       # Exploit-DB 搜索（在线优先 + 本地降级）
+    nuclei_tool.py        # Nuclei 模板搜索（在线优先 + 本地降级）
+    scan_tools.py         # 端口扫描 + 子域名枚举
+    network_tools.py      # HTTP 安全头 + DNS + IP 地理定位
+  validators/
+    __init__.py           # 输入验证：IP/域名/URL/端口/CVE/CWE + 命令注入防护
+```
+
+---
+
+## 安装
 
 ### 1. 克隆仓库
 
@@ -43,81 +69,63 @@ cd vuln-research-mcp
 pip install -r requirements.txt
 ```
 
-### 3. 配置 Claude Desktop
+### 3. 配置 MCP 客户端
 
-编辑 `claude_desktop_config.json`：
+编辑 `claude_desktop_config.json`（或对应 MCP 客户端配置）：
 
 ```json
 {
   "mcpServers": {
     "vuln-research": {
       "command": "python",
-      "args": [
-        "C:\\path\\to\\vuln-research-mcp\\src\\server.py"
-      ]
+      "args": ["src/server.py"]
     }
   }
 }
 ```
 
----
+### 4. 可选：安装外部工具
 
-## 🔧 使用方法
+```bash
+# nmap（端口扫描）
+# Windows: https://nmap.org/download.html
+# Linux: sudo apt install nmap
+# macOS: brew install nmap
 
-### 示例 1：搜索 Log4j 漏洞
+# sublist3r（子域名枚举）
+pip install sublist3r
 
-```
-你：帮我搜索 Log4j 相关的 CVE
-Claude：调用 search_cve 工具
-参数：keyword="Apache Log4j"
-结果：返回 CVE-2021-44228 等相关漏洞
-```
-
-### 示例 2：获取 CVE 详细信息
-
-```
-你：获取 CVE-2021-44228 的详细信息
-Claude：调用 get_cve_details 工具
-结果：返回 CVSS 9.8, 影响版本, 修复建议等
-```
-
-### 示例 3：计算 CVSS 评分（完整 vector 字符串）
-
-```
-你：计算 CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H 的评分
-Claude：调用 cvss_calculator 工具
-结果：CVSS 10.0 (Critical)
-```
-
-### 示例 4：查询 CWE-89（SQL 注入）
-
-```
-你：什么是 CWE-89？
-Claude：调用 cwe_mapping 工具
-结果：返回 SQL Injection 定义、类型、描述
+# searchsploit（Exploit 搜索 - 可选，不装会自动用在线 API）
+# Linux: sudo apt install exploitdb
 ```
 
 ---
 
-## 🛠️ 开发计划
+## 安全特性
 
-### 当前状态（v0.1.1）
-
-- ✅ 基础 MCP 服务器框架
-- ✅ 11 个工具完整实现
-- ✅ CVSS 严格按 FIRST v3.1 规范计算
-- ✅ 自测脚本覆盖核心路径
-- 🔄 计划：增加 Temporal/Environmental Score 计算
-- 🔄 计划：集成更多公开情报源
+| 防护类型 | 实现方式 |
+|---------|---------|
+| 命令注入 | `sanitize_subprocess_arg()` 拒绝 shell 元字符 |
+| 输入校验 | IP/域名/URL/端口/CVE-ID/CWE-ID 正则验证 |
+| SSRF 防护 | `is_private_ip()` 检测内网地址，URL 限制 http/https |
+| 路径遍历 | 域名验证拒绝 `../` 模式 |
+| 错误脱敏 | 统一 ValueError 捕获，不泄露堆栈 |
 
 ---
 
-## 📄 许可证
+## 开发
+
+```bash
+# 运行测试
+python test_v02.py
+
+# 构建
+pip install build
+python -m build
+```
+
+---
+
+## License
 
 MIT
-
----
-
-## 📮 问题反馈
-
-如有问题，请提交 Issue 到 [99-sketch/vuln-research-mcp](https://github.com/99-sketch/vuln-research-mcp)
