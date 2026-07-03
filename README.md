@@ -2,7 +2,7 @@
 
 > 安全情报工作站 — Vulnerability Research MCP Server
 > 
-> 19 个工具 | 异步架构 | 熔断器 | 缓存 | CISA KEV | EPSS | 跨源搜索 | Docker
+> 20 个工具 | 异步架构 | 熔断器 | 缓存 | CISA KEV | EPSS | 跨源搜索 | Docker
 
 ## 工具一览
 

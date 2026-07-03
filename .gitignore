@@ -43,6 +43,8 @@ Thumbs.db
 
 # Local only (not for repo)
 test_local.py
+test_v0*.py
+test_v02.py
 
 # MCP
 .claude/
