@@ -28,9 +28,22 @@ All notable changes to this project will be documented in this file.
 - **find_nuclei_template 在线降级**：无本地模板时自动切换到 GitHub API
 - **sublist3r 路径跨平台**：`/tmp` 改为 `tempfile.gettempdir()`，Windows 兼容
 - **CWE 库扩展至 20 条**：新增 CWE-22, CWE-94, CWE-125, CWE-119, CWE-200, CWE-306, CWE-311, CWE-319, CWE-327, CWE-352, CWE-434, CWE-502, CWE-522, CWE-798, CWE-862
+- **pyproject.toml 依赖修复**：添加 `dnspython>=2.4.0`，移除未使用的 `pydantic`
+
+### Cleanup
+- 删除 .pypirc（应使用 ~/.pypirc 或 CI secrets）
+- 删除 7 份过时文档（API_REFERENCE.md, CONTRIBUTING.md, EXAMPLES.md, TROUBLESHOOTING.md, USAGE.md, PACKAGING_SETUP_REPORT.md, docs/）
+- 删除 install.ps1（v0.1.x 旧脚本，路径不匹配 v0.2.0 架构）
+- 删除 MANIFEST.in（pyproject.toml 已覆盖）
 
 ### Test
-- **54 项自测全部通过**：覆盖输入验证(23) + CVSS(5) + CWE(5) + CVE(4) + DNS(3) + HTTP(4) + GeoIP(4) + 离线降级(6)
+- **pytest 测试套件**：`tests/test_server.py` 重写为 pytest 格式，覆盖 54 项测试
+  - 输入验证 22 项、CVSS 5 项、CWE 5 项、CVE 4 项、DNS 3 项、HTTP 4 项、GeoIP 4 项、离线降级 6 项
+- **快速自测脚本**：`test_v02.py` 保留在根目录，可直接 `python test_v02.py` 运行
+
+### Known Issues
+- v0.1.1 CHANGELOG 声称的 `test_v011.py` 未提交到仓库（已被 .gitignore 排除），此问题在 v0.2.0 修正
+- 5 个工具仍需外部二进制（nmap/sublist3r/searchsploit），但已实现在线 API 降级
 
 ## [0.1.1] - 2026-07-03
 
@@ -38,6 +51,11 @@ All notable changes to this project will be documented in this file.
 - CVSS 计算器算法重写（FIRST CVSS v3.1 规范）
 - CWE 本地库扩展至 18 条
 - CVE 查询超时优化
+
+### Known Issues (retroactively noted)
+- `test_v011.py` 在 CHANGELOG 中提及但未提交到仓库（.gitignore 排除）
+- `pyproject.toml` 缺少 `dnspython` 依赖
+- `.pypirc` 模板暴露在仓库根目录
 
 ## [0.1.0] - 2026-07-02
 

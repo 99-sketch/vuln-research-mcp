@@ -39,13 +39,10 @@ Thumbs.db
 
 # Project specific
 *.tmp
-/tmp/
-test_local.py
-test_v011.py
-test_v02.py
-
-# Logs
 *.log
+
+# Local only (not for repo)
+test_local.py
 
 # MCP
 .claude/
