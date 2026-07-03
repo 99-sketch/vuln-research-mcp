@@ -1,17 +1,18 @@
 # vuln-research-mcp
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-4.5.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-5.0.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/python-3.10_|_3.11_|_3.12-blue.svg" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
-  <img src="https://img.shields.io/badge/tools-39-orange.svg" alt="Tools">
-  <img src="https://img.shields.io/badge/security_hardened-v4.5-red.svg" alt="Security">
+  <img src="https://img.shields.io/badge/tools-51-orange.svg" alt="Tools">
+  <img src="https://img.shields.io/badge/security-enterprise-red.svg" alt="Security">
+  <img src="https://img.shields.io/badge/cnvd-CNVD_ready-red.svg" alt="CNVD">
   <img src="https://img.shields.io/badge/tests-363%20passed-brightgreen.svg" alt="Tests">
 </p>
 
-> **渗透测试工具链基础设施级组件** — Vulnerability Research MCP Server v4.5 (No Docker, CN Friendly)
+> **企业级安全平台** — Vulnerability Research MCP Server v5.0 (Enterprise Security Platform)
 >
-> 39 个工具 | 事件总线 | SQLite 持久层 | 资产-漏洞关联引擎 | YAML 管道编排 | MITRE ATT&CK 映射 | REST API | 安全加固 | 国内友好部署
+> 51 个工具 | 6层纵深防御 | CNVD/CNNVD | 等保2.0 | Neo4j | 离线镜像 | SIEM告警 | 数据库加密
 
 ---
 

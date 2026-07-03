@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 """
-Vulnerability Research MCP Server v4.5.0
+Vulnerability Research MCP Server v5.0.0 — Enterprise Security Platform
 Penetration Testing Infrastructure Component
 
-v4.0 Architecture (Layered):
-  gateway/       多协议接入 (MCP + REST API + WebSocket + CLI)
-  security/      v4.1 安全加固 (输入净化/目标白名单/审计日志/密钥管理/工具权限)
+v5.0 Architecture (Layered):
+  gateway/       多协议接入 (MCP + REST API + WebSocket + CLI) + API认证
+  security/      企业安全体系 (输入净化/数据清洗/目标策略/工具RBAC/人工审批/
+                 审计日志/密钥管理/数据库加密/API认证/告警系统)
+  compliance/    合规检查 (漏洞修复验证/基线合规/等保2.0)
+  graph/         Neo4j 知识图谱 (大规模资产图谱 + 攻击路径分析)
+  intel/         情报层 (MITRE ATT&CK + CNVD/CNNVD + 离线镜像)
   bus/           事件总线 (Pub/Sub)
   orchestrator/  流水线编排 + 任务调度
   correlator/    资产-漏洞关联引擎
-  intel/         MITRE ATT&CK 映射
   reporting/     专业渗透测试报告
-  db/            SQLite 持久化 (Project/Asset/Finding/Evidence/Timeline/Report)
+  db/            SQLite 持久化 (Project/Asset/Finding/Evidence/Timeline/Report) + AES加密
   models/        统一漏洞数据模型 (UnifiedVulnerability -> STIX 2.1 / SARIF)
-  tools/         38+ 工具 (CVE/CVSS/CWE/Exploit/Nuclei/Network/Scan/ThreatIntel/CPE/Graph/Report/Scanner)
+  tools/         39+ 工具 (CVE/CVSS/CWE/Exploit/Nuclei/Network/Scan/ThreatIntel/CNVD/CPE/Graph/Report/Scanner)
   core/          基础设施 (AsyncSubProcess, CircuitBreaker, Cache, KnowledgeGraph, Session)
   workflow/      DAG 工作流引擎 + 预设工作流 + 导出
   watchdog/      CISA KEV 轮询告警
@@ -90,7 +93,19 @@ from src.security.tool_guard import ToolGuard, ToolRiskLevel, create_tool_guard
 from src.security.target_policy import TargetPolicy, ScanLimitPolicy, create_default_policy
 from src.security.key_manager import SecureKeyManager, create_key_manager
 
-__version__ = "4.5.0"
+# v5.0 Enterprise Modules
+from src.security.approval import ToolApprovalManager, ApprovalDecision, get_approval_manager
+from src.security.data_sanitizer import DataContextSanitizer, get_data_sanitizer
+from src.security.db_crypto import DatabaseCrypto, get_db_crypto
+from src.security.api_auth import APIAuthManager, get_api_auth
+from src.security.alerting import AlertManager, AlertSeverity, get_alert_manager
+from src.intel.cnvd import CNVDClient, CNNVDClient, CVECNMapper, get_cnvd_client, get_cnnvd_client, get_cve_cn_mapper
+from src.intel.offline_mirror import OfflineMirror, get_offline_mirror
+from src.compliance.fix_verifier import FixVerifier, FixStatus, FixResult, get_fix_verifier
+from src.compliance.baseline_checker import BaselineChecker, ComplianceReport, get_baseline_checker
+from src.graph.neo4j_adapter import Neo4jAdapter, get_neo4j_adapter
+
+__version__ = "5.0.0"
 
 # ---------- State ----------
 
@@ -112,6 +127,20 @@ _audit: Optional[AuditLogger] = None
 _tool_guard: Optional[ToolGuard] = None
 _target_policy: Optional[TargetPolicy] = None
 _key_manager: Optional[SecureKeyManager] = None
+
+# v5.0 Enterprise
+_approval_mgr: Optional[ToolApprovalManager] = None
+_data_sanitizer: Optional[DataContextSanitizer] = None
+_db_crypto: Optional[DatabaseCrypto] = None
+_api_auth: Optional[APIAuthManager] = None
+_alert_mgr: Optional[AlertManager] = None
+_cnvd_client: Optional[CNVDClient] = None
+_cnnvd_client: Optional[CNNVDClient] = None
+_cve_cn_mapper: Optional[CVECNMapper] = None
+_offline_mirror: Optional[OfflineMirror] = None
+_fix_verifier: Optional[FixVerifier] = None
+_baseline_checker: Optional[BaselineChecker] = None
+_neo4j: Optional[Neo4jAdapter] = None
 
 
 def _register_all_tools():
@@ -437,6 +466,105 @@ def _register_all_tools():
         handler=_pentest_report_tool,
     ))
 
+    # === v5.0 新增工具 (12) ===
+
+    # CNVD 国内漏洞库
+    registry.register(ToolDefinition(
+        name="cnvd_search", description="搜索中国国家信息安全漏洞共享平台(CNVD)漏洞库",
+        input_schema={"type": "object", "properties": {
+            "keyword": {"type": "string", "description": "搜索关键词（中文）"},
+            "max_results": {"type": "number", "description": "最大结果数", "default": 20},
+            "severity": {"type": "string", "description": "严重程度过滤: 超危/高危/中危/低危"},
+        }, "required": ["keyword"]},
+        handler=_cnvd_search_tool,
+    ))
+    registry.register(ToolDefinition(
+        name="cnvd_detail", description="获取CNVD漏洞详细信息",
+        input_schema={"type": "object", "properties": {
+            "cnvd_id": {"type": "string", "description": "CNVD编号"},
+        }, "required": ["cnvd_id"]},
+        handler=_cnvd_detail_tool,
+    ))
+    registry.register(ToolDefinition(
+        name="cnnvd_search", description="搜索国家信息安全漏洞库(CNNVD)",
+        input_schema={"type": "object", "properties": {
+            "keyword": {"type": "string", "description": "搜索关键词"},
+            "max_results": {"type": "number", "description": "最大结果数", "default": 10},
+        }, "required": ["keyword"]},
+        handler=_cnnvd_search_tool,
+    ))
+    registry.register(ToolDefinition(
+        name="cve_to_cnvd", description="CVE编号映射到CNVD/CNNVD国内编号",
+        input_schema={"type": "object", "properties": {
+            "cve_id": {"type": "string", "description": "CVE编号"},
+        }, "required": ["cve_id"]},
+        handler=_cve_to_cnvd_tool,
+    ))
+
+    # 离线镜像管理
+    registry.register(ToolDefinition(
+        name="offline_mirror_status", description="查看离线漏洞库镜像下载状态",
+        input_schema={"type": "object", "properties": {}},
+        handler=_offline_mirror_status_tool,
+    ))
+    registry.register(ToolDefinition(
+        name="offline_mirror_query", description="在离线漏洞库中查询CVE或Exploit",
+        input_schema={"type": "object", "properties": {
+            "cve_id": {"type": "string", "description": "CVE编号"},
+            "query": {"type": "string", "description": "通用搜索关键词"},
+        }},
+        handler=_offline_mirror_query_tool,
+    ))
+
+    # 漏洞修复验证
+    registry.register(ToolDefinition(
+        name="verify_fix", description="验证漏洞是否已被修复（版本比对 + NVD参考 + 端口比对）",
+        input_schema={"type": "object", "properties": {
+            "cve_id": {"type": "string", "description": "CVE编号"},
+            "target": {"type": "string", "description": "目标IP或域名"},
+            "current_version": {"type": "string", "description": "当前部署版本"},
+            "service_name": {"type": "string", "description": "受影响的服务名称"},
+        }, "required": ["cve_id", "target"]},
+        handler=_verify_fix_tool,
+    ))
+
+    # 等保2.0 合规检查
+    registry.register(ToolDefinition(
+        name="compliance_check", description="执行等保2.0/CIS安全基线合规检查",
+        input_schema={"type": "object", "properties": {
+            "target": {"type": "string", "description": "目标IP或主机名"},
+            "profile": {"type": "string", "description": "基线配置: dengbao_l3, cis_server, all", "default": "dengbao_l3"},
+        }, "required": ["target"]},
+        handler=_compliance_check_tool,
+    ))
+
+    # Neo4j 知识图谱
+    registry.register(ToolDefinition(
+        name="neo4j_attack_paths", description="Neo4j知识图谱: 查找资产到CVE的攻击路径",
+        input_schema={"type": "object", "properties": {
+            "target_ip": {"type": "string", "description": "目标IP地址"},
+            "max_depth": {"type": "number", "description": "最大深度(默认5)", "default": 5},
+        }, "required": ["target_ip"]},
+        handler=_neo4j_attack_paths_tool,
+    ))
+    registry.register(ToolDefinition(
+        name="neo4j_critical_assets", description="Neo4j知识图谱: 查找存在高危漏洞的资产",
+        input_schema={"type": "object", "properties": {
+            "cvss_threshold": {"type": "number", "description": "CVSS最低分数(默认7.0)", "default": 7.0},
+        }},
+        handler=_neo4j_critical_assets_tool,
+    ))
+
+    # 审计日志导出
+    registry.register(ToolDefinition(
+        name="audit_export", description="导出安全审计日志（JSONL/Syslog/CEF格式）",
+        input_schema={"type": "object", "properties": {
+            "format": {"type": "string", "description": "导出格式: jsonl, syslog, cef", "default": "jsonl"},
+            "days": {"type": "number", "description": "导出最近N天(默认30)", "default": 30},
+        }},
+        handler=_audit_export_tool,
+    ))
+
     return registry
 
 
@@ -589,6 +717,106 @@ async def _pentest_report_tool(project_id: int, format: str = "markdown",
     }
 
 
+# ── v5.0 tool wrappers ──
+
+async def _cnvd_search_tool(keyword: str, max_results: int = 20, severity: str = None) -> dict:
+    client = _cnvd_client or get_cnvd_client()
+    results = await client.search(keyword, max_results=max_results, severity=severity)
+    return {"source": "CNVD", "count": len(results), "results": [r.to_dict() for r in results]}
+
+
+async def _cnvd_detail_tool(cnvd_id: str) -> dict:
+    client = _cnvd_client or get_cnvd_client()
+    detail = await client.get_detail(cnvd_id)
+    if not detail:
+        return {"error": f"CNVD vulnerability not found: {cnvd_id}"}
+    return detail.to_dict()
+
+
+async def _cnnvd_search_tool(keyword: str, max_results: int = 10) -> dict:
+    client = _cnnvd_client or get_cnnvd_client()
+    results = await client.search(keyword, max_results=max_results)
+    return {"source": "CNNVD", "count": len(results), "results": [r.to_dict() for r in results]}
+
+
+async def _cve_to_cnvd_tool(cve_id: str) -> dict:
+    mapper = _cve_cn_mapper or get_cve_cn_mapper()
+    await mapper.load_mappings()
+    cnvd_id = mapper.get_cnvd(cve_id)
+    cnnvd_id = mapper.get_cnnvd(cve_id)
+    return {"cve_id": cve_id, "cnvd_id": cnvd_id, "cnnvd_id": cnnvd_id}
+
+
+async def _offline_mirror_status_tool() -> dict:
+    mirror = _offline_mirror or get_offline_mirror()
+    status = mirror.get_status()
+    stats = mirror.get_offline_stats()
+    return {"summary": mirror.get_sync_summary(), "stats": stats, "sources": {k: v.__dict__ for k, v in status.items()}}
+
+
+async def _offline_mirror_query_tool(cve_id: str = "", query: str = "") -> dict:
+    mirror = _offline_mirror or get_offline_mirror()
+    results = []
+    if cve_id:
+        cve_data = mirror.query_offline_cve(cve_id)
+        exploits = mirror.query_offline_exploits(cve_id)
+        if cve_data:
+            results.append({"type": "cve", "data": cve_data})
+        results.append({"type": "exploits", "count": len(exploits), "data": exploits})
+    if query:
+        search_results = mirror.search_offline(query)
+        results.append({"type": "search", "count": len(search_results), "data": search_results})
+    return {"offline_query": True, "results": results}
+
+
+async def _verify_fix_tool(cve_id: str, target: str, current_version: str = None, service_name: str = None) -> dict:
+    verifier = _fix_verifier or get_fix_verifier()
+    result = await verifier.verify_fix(cve_id, target, current_version, service_name)
+    return result.to_dict()
+
+
+async def _compliance_check_tool(target: str, profile: str = "dengbao_l3") -> dict:
+    checker = _baseline_checker or get_baseline_checker()
+    report = checker.run_checks(target, profile)
+    return report.to_dict()
+
+
+async def _neo4j_attack_paths_tool(target_ip: str, max_depth: int = 5) -> dict:
+    adapter = _neo4j or get_neo4j_adapter()
+    if not adapter.is_connected:
+        await adapter.connect()
+    if not adapter.is_connected:
+        return {"error": "Neo4j not connected. Set NEO4J_URI/NEO4J_PASSWORD env vars and install neo4j package."}
+    paths = await adapter.find_attack_paths(target_ip, max_depth)
+    return {"target_ip": target_ip, "paths_found": len(paths), "paths": paths}
+
+
+async def _neo4j_critical_assets_tool(cvss_threshold: float = 7.0) -> dict:
+    adapter = _neo4j or get_neo4j_adapter()
+    if not adapter.is_connected:
+        await adapter.connect()
+    if not adapter.is_connected:
+        return {"error": "Neo4j not connected."}
+    assets = await adapter.get_critical_assets(cvss_threshold)
+    return {"cvss_threshold": cvss_threshold, "assets_found": len(assets), "assets": assets}
+
+
+async def _audit_export_tool(format: str = "jsonl", days: int = 30) -> dict:
+    import os, glob
+    audit_dir = os.path.expanduser("~/.vuln-research-mcp/audit")
+    if not os.path.exists(audit_dir):
+        return {"error": f"Audit directory not found: {audit_dir}"}
+    files = sorted(glob.glob(os.path.join(audit_dir, "audit-*.jsonl")), reverse=True)[:days]
+    entries = []
+    for f in files:
+        if os.path.exists(f):
+            with open(f, 'r') as fh:
+                for line in fh:
+                    if line.strip():
+                        entries.append(line.strip())
+    return {"total_entries": len(entries), "days": days, "format": format, "entries": entries[:1000]}
+
+
 # ---------- MCP Server ----------
 
 server = Server("vuln-research-mcp")
@@ -605,6 +833,27 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
     logger = logging.getLogger("vuln-research-mcp")
     logger.info(f"Call: {name}")
 
+    # --- v5.0 Security Layer 1: Tool Approval (human-in-the-loop) ---
+    if _approval_mgr and arguments and isinstance(arguments, dict):
+        target = arguments.get("target") or arguments.get("domain") or arguments.get("ip") or arguments.get("url") or arguments.get("target_ip")
+        decision = await _approval_mgr.request_approval(
+            name, arguments, target=str(target) if target else None,
+            timeout=30
+        )
+        if decision == ApprovalDecision.DENIED:
+            logger.warning(f"Tool denied by approval: {name}")
+            if _audit:
+                _audit.log_tool_call(name, arguments, result="denied", reason="tool_approval_denied")
+            if _alert_mgr:
+                _alert_mgr.send_alert(AlertSeverity.WARNING, f"Tool denied by approval: {name}",
+                                       f"Tool '{name}' was denied by human approval. Target: {target}")
+            return [TextContent(type="text", text=json.dumps({"error": "Operation rejected by approval policy"}, ensure_ascii=False))]
+        elif decision == ApprovalDecision.TIMED_OUT:
+            logger.warning(f"Tool approval timed out: {name}")
+            if _audit:
+                _audit.log_tool_call(name, arguments, result="denied", reason="approval_timeout")
+            return [TextContent(type="text", text=json.dumps({"error": "Approval timed out — operation not confirmed"}, ensure_ascii=False))]
+
     # --- v4.1 Security: Tool Guard check ---
     if _tool_guard:
         allowed, reason = _tool_guard.is_allowed(name)
@@ -612,18 +861,40 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             logger.warning(f"工具调用被拒绝: {name} - {reason}")
             if _audit:
                 _audit.log_tool_call(name, arguments or {}, result="denied", reason=reason)
+            if _alert_mgr:
+                _alert_mgr.send_alert(AlertSeverity.WARNING, f"Tool blocked by guard: {name}",
+                                       f"Tool '{name}' blocked: {reason}")
             return [TextContent(type="text", text=json.dumps({"error": f"Tool blocked: {reason}"}, ensure_ascii=False))]
 
     # --- v4.1 Security: Target policy check for scan tools ---
     if _target_policy and arguments and isinstance(arguments, dict):
         target = arguments.get("target") or arguments.get("domain") or arguments.get("ip") or arguments.get("url")
-        if target and name in ("scan_ports", "enumerate_subdomains", "generate_nuclei_command"):
+        if target and name in ("scan_ports", "enumerate_subdomains", "generate_nuclei_command", "check_http_headers"):
             allowed, reason = _target_policy.check_target(str(target))
             if not allowed:
                 logger.warning(f"目标被策略拒绝: {target} - {reason}")
                 if _audit:
                     _audit.log_scan_attempt(name, str(target), False, reason)
+                if _alert_mgr:
+                    _alert_mgr.send_alert(AlertSeverity.ERROR, f"Target policy violation: {name}",
+                                           f"Tool '{name}' attempted to scan blocked target: {target}. Reason: {reason}",
+                                           tags={"target": str(target), "tool": name})
                 return [TextContent(type="text", text=json.dumps({"error": f"Target denied: {reason}"}, ensure_ascii=False))]
+
+    # --- v5.0 Security Layer 2: SSRF Protection for HTTP tools ---
+    if _target_policy and arguments and isinstance(arguments, dict):
+        url_target = arguments.get("url") or arguments.get("target")
+        if url_target and name in ("check_http_headers",):
+            import re
+            from urllib.parse import urlparse
+            parsed = urlparse(str(url_target))
+            if parsed.hostname:
+                allowed, reason = _target_policy.check_target(parsed.hostname)
+                if not allowed:
+                    logger.warning(f"SSRF blocked: {url_target} - {reason}")
+                    if _audit:
+                        _audit.log_tool_call(name, arguments, result="denied", reason=f"SSRF: {reason}")
+                    return [TextContent(type="text", text=json.dumps({"error": f"SSRF blocked: {reason}"}, ensure_ascii=False))]
 
     registry = get_registry()
     tool_def = registry.resolve(name)
@@ -632,6 +903,14 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
 
     try:
         result = await tool_def.handler(**arguments)
+
+        # --- v5.0 Security Layer 3: External data sanitization ---
+        if _data_sanitizer and isinstance(result, dict):
+            clean_result, report = _data_sanitizer.sanitize_structured(result, source=name)
+            if report.was_modified:
+                logger.info(f"Data sanitized for tool {name}: {len(report.flags)} modifications")
+                result = clean_result
+
         # --- v4.1 Security: Audit logging ---
         if _audit:
             _audit.log_tool_call(name, arguments or {}, result="success")
@@ -645,6 +924,9 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         logger.error(f"Tool {name} failed: {e}")
         if _audit:
             _audit.log_tool_call(name, arguments or {}, result="error", reason=str(e))
+        if _alert_mgr:
+            _alert_mgr.send_alert(AlertSeverity.ERROR, f"Tool execution failed: {name}",
+                                   f"Tool '{name}' failed with error: {str(e)}")
         return [TextContent(type="text", text=json.dumps({"error": str(e)}, ensure_ascii=False))]
 
 
@@ -654,6 +936,9 @@ async def _init():
     global _config, _health, _graph, _sessions, _workflow_engine, _watchdog
     global _bus, _db, _correlator, _pipeline, _scheduler, _attack_mapper, _report_gen
     global _audit, _tool_guard, _target_policy, _key_manager  # v4.1 Security
+    global _approval_mgr, _data_sanitizer, _db_crypto, _api_auth, _alert_mgr  # v5.0 Security
+    global _cnvd_client, _cnnvd_client, _cve_cn_mapper, _offline_mirror  # v5.0 Intel
+    global _fix_verifier, _baseline_checker, _neo4j  # v5.0 Compliance / Graph
 
     _config = load_config()
     setup_logging(level=_config.server.log_level, fmt=_config.server.log_format)
@@ -733,8 +1018,50 @@ async def _init():
     _target_policy = create_default_policy()
     _key_manager = create_key_manager()
     _key_manager.load_from_env()
-    logger.info("Security: Audit log + Tool guard + Target policy + Key manager initialized")
-    logger.info(f"Security: {_tool_guard.filter_tools.__name__} | Max risk level: {_tool_guard._max_risk_level.value}")
+    logger.info("Security v4.1: Audit log + Tool guard + Target policy + Key manager initialized")
+
+    # v5.0 Enterprise Security
+    _approval_mgr = get_approval_manager()
+    _approval_mgr.configure_from_policy({
+        "default_deny_levels": ["EXPLOIT", "SYSTEM"],
+        "require_approval_levels": ["ACTIVE_SCAN"],
+        "auto_approve_tools": ["search_cve", "get_cve_details", "cvss_calculator", "cwe_mapping",
+                                "graph_traverse", "graph_search", "graph_stats", "graph_neighbors",
+                                "list_workflows", "list_pipelines", "list_poc_archive",
+                                "cnvd_search", "cnvd_detail", "cnnvd_search", "cve_to_cnvd",
+                                "offline_mirror_status", "offline_mirror_query", "compliance_check"],
+    })
+    _data_sanitizer = get_data_sanitizer(aggressive=False)
+    _db_crypto = get_db_crypto()
+    _api_auth = get_api_auth()
+    _alert_mgr = get_alert_manager()
+    logger.info("Security v5.0: Approval mgr + Data sanitizer + DB crypto + API auth + Alerting initialized")
+
+    # v5.0 Intel — CNVD/CNNVD
+    _cnvd_client = get_cnvd_client()
+    _cnnvd_client = get_cnnvd_client()
+    _cve_cn_mapper = get_cve_cn_mapper()
+    logger.info("Intel v5.0: CNVD + CNNVD + CVE-CN Mapper initialized")
+
+    # v5.0 Intel — Offline Mirror
+    _offline_mirror = get_offline_mirror()
+    mirror_status = _offline_mirror.get_status()
+    mirror_count = len(mirror_status)
+    logger.info(f"Offline Mirror: {mirror_count} data sources ({_offline_mirror.get_sync_summary().split(chr(10))[0] if mirror_count else 'no data yet'})")
+
+    # v5.0 Compliance
+    _fix_verifier = get_fix_verifier()
+    _baseline_checker = get_baseline_checker()
+    logger.info(f"Compliance: Fix verifier + Baseline checker ({len(_baseline_checker.list_profiles())} profiles)")
+
+    # v5.0 Graph — Neo4j (optional)
+    _neo4j = get_neo4j_adapter()
+    neo4j_connected = await _neo4j.connect()
+    if neo4j_connected:
+        stats = await _neo4j.get_graph_stats()
+        logger.info(f"Neo4j: Connected ({stats.get('total_nodes', 0)} nodes, {stats.get('total_edges', 0)} edges)")
+    else:
+        logger.info("Neo4j: Not available — using NetworkX fallback")
 
     # Health check
     _health = await startup_health_check()
@@ -750,7 +1077,7 @@ async def _init():
 async def main():
     await _init()
     logger = logging.getLogger("vuln-research-mcp")
-    logger.info("v4.1 ready. Waiting for MCP calls...")
+    logger.info("v5.0 ready. Waiting for MCP calls...")
 
     async with stdio_server() as (read_stream, write_stream):
         await server.run(read_stream, write_stream, server.create_initialization_options())
