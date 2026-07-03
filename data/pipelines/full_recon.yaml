@@ -1,0 +1,65 @@
+name: "Full Pentest Recon"
+description: "Complete reconnaissance pipeline: discovery, fingerprinting, vulnerability analysis, and reporting"
+stages:
+  - name: "Network Discovery"
+    parallel: true
+    steps:
+      - name: "Port Scan"
+        tool: scan_ports
+        params:
+          target: "$context.target"
+          ports: "1-65535"
+        timeout: 300
+
+      - name: "Subdomain Enumeration"
+        tool: enumerate_subdomains
+        params:
+          domain: "$context.target"
+        timeout: 120
+
+  - name: "Service Fingerprinting"
+    depends_on: ["Network Discovery"]
+    parallel: true
+    steps:
+      - name: "HTTP Header Check"
+        tool: check_http_headers
+        params:
+          url: "$context.target"
+        timeout: 30
+
+      - name: "DNS Lookup"
+        tool: query_dns
+        params:
+          domain: "$context.target"
+        timeout: 15
+
+      - name: "GeoIP Lookup"
+        tool: geolocate_ip
+        params:
+          ip: "$context.target"
+        timeout: 10
+
+  - name: "Vulnerability Analysis"
+    depends_on: ["Service Fingerprinting"]
+    steps:
+      - name: "Cross-Source Search"
+        tool: cross_source_search
+        params:
+          query: "$context.target"
+        timeout: 60
+
+      - name: "Find Exploits"
+        tool: search_exploit
+        params:
+          query: "$context.target"
+        timeout: 30
+
+  - name: "Reporting"
+    depends_on: ["Vulnerability Analysis"]
+    steps:
+      - name: "Generate Report"
+        tool: generate_report
+        params:
+          vulnerabilities: "[]"
+          formats: "markdown"
+        timeout: 10

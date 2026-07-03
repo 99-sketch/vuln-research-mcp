@@ -1,0 +1,47 @@
+name: "Technology Stack Audit"
+description: "Audit a technology stack: CPE lookup, CVE matching, risk scoring, and remediation planning"
+stages:
+  - name: "CPE Identification"
+    steps:
+      - name: "CPE Lookup"
+        tool: cpe_lookup
+        params:
+          product: "$context.product $context.version"
+        timeout: 10
+
+  - name: "Vulnerability Matching"
+    depends_on: ["CPE Identification"]
+    steps:
+      - name: "CVE Search by Product"
+        tool: search_cve
+        params:
+          keyword: "$context.product $context.version"
+          product: "$context.product"
+          version: "$context.version"
+        timeout: 20
+
+  - name: "Risk Analysis"
+    depends_on: ["Vulnerability Matching"]
+    parallel: true
+    steps:
+      - name: "CWE Mapping"
+        tool: cwe_mapping
+        params:
+          cve_id: "$context.cve_id"
+        timeout: 10
+
+      - name: "CVSS Calculation"
+        tool: cvss_calculator
+        params:
+          cve_id: "$context.cve_id"
+        timeout: 10
+
+  - name: "Report"
+    depends_on: ["Risk Analysis"]
+    steps:
+      - name: "Generate Audit Report"
+        tool: generate_report
+        params:
+          vulnerabilities: "[]"
+          formats: "markdown"
+        timeout: 10

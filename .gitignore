@@ -48,3 +48,9 @@ test_v02.py
 
 # MCP
 .claude/
+
+# v4.0 runtime artifacts
+data/*.db
+reports/
+*.spec
+*.db

@@ -1,0 +1,61 @@
+name: "Vulnerability Deep Dive"
+description: "In-depth analysis of a specific CVE: details, risk assessment, exploit search, and threat intelligence"
+stages:
+  - name: "CVE Intelligence"
+    parallel: true
+    steps:
+      - name: "CVE Details"
+        tool: get_cve_details
+        params:
+          cve_id: "$context.cve_id"
+        timeout: 15
+
+      - name: "Risk Assessment"
+        tool: vulnerability_assess
+        params:
+          cve_id: "$context.cve_id"
+        timeout: 15
+
+  - name: "Exploit Research"
+    depends_on: ["CVE Intelligence"]
+    parallel: true
+    steps:
+      - name: "Search Exploits"
+        tool: search_exploit
+        params:
+          query: "$context.cve_id"
+        timeout: 30
+
+      - name: "Search Nuclei Templates"
+        tool: find_nuclei_template
+        params:
+          tags: "$context.cve_id"
+        timeout: 20
+
+      - name: "Search PoC Archive"
+        tool: search_poc_archive
+        params:
+          query: "$context.cve_id"
+        timeout: 15
+
+  - name: "Threat Intelligence"
+    depends_on: ["Exploit Research"]
+    parallel: true
+    steps:
+      - name: "KEV Check"
+        tool: check_kev
+        params:
+          cve_id: "$context.cve_id"
+        timeout: 10
+
+      - name: "EPSS Score"
+        tool: get_epss_score
+        params:
+          cve_id: "$context.cve_id"
+        timeout: 10
+
+      - name: "Cross-Source Search"
+        tool: cross_source_search
+        params:
+          query: "$context.cve_id"
+        timeout: 30
