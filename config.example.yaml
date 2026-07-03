@@ -1,0 +1,32 @@
+# vuln-research-mcp 配置文件
+# 优先级: 命令行参数 > 环境变量 > 本文件 > 默认值
+# 放置位置: ~/.vuln-research-mcp/config.yaml
+
+server:
+  name: vuln-research-mcp
+  log_level: INFO       # DEBUG | INFO | WARNING | ERROR
+  log_format: text      # text | json
+
+api_keys:
+  nvd: ""               # 或设置环境变量 NVD_API_KEY
+
+tools:
+  disabled: []           # ["scan_ports"] 按需禁用
+
+rate_limit:
+  nvd_requests_per_window: 5    # 无 API Key: 5次/30秒, 有 API Key: 50次/30秒
+  nvd_window_seconds: 30
+  nvd_max_retries: 3
+
+cache:
+  enabled: true
+  directory: ~/.vuln-research-mcp/cache
+  max_size_mb: 200
+
+circuit_breaker:
+  nvd_failure_threshold: 5
+  nvd_recovery_seconds: 60
+  cisa_failure_threshold: 3
+  cisa_recovery_seconds: 60
+  epss_failure_threshold: 3
+  epss_recovery_seconds: 60

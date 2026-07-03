@@ -7,9 +7,9 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="vuln-research-mcp",
-    version="1.1.0",
+    version="2.0.0",
     author="Penetration Testing Expert Agent",
-    description="Vulnerability Research MCP Server for Penetration Testers",
+    description="Vulnerability Research MCP Server - Security Intelligence Workstation",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/99-sketch/vuln-research-mcp",
@@ -19,6 +19,8 @@ setup(
         "mcp>=1.0.0",
         "httpx>=0.27.0",
         "dnspython>=2.4.0",
+        "diskcache>=5.6.0",
+        "PyYAML>=6.0",
     ],
     extras_require={
         "dev": [

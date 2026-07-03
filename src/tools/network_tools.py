@@ -1,11 +1,14 @@
 # src/tools/network_tools.py
-"""网络工具：HTTP 安全头检查、DNS 查询、IP 地理定位"""
+"""网络工具：HTTP 安全头检查、DNS 查询、IP 地理定位 — v2.0: 缓存"""
 
 import logging
 import ipaddress
+
 import httpx
 import dns.resolver
+
 from ..validators import validate_url, validate_domain, validate_ip, is_private_ip
+from ..core.cache_manager import get_cache
 
 logger = logging.getLogger("vuln-research-mcp")
 
@@ -62,14 +65,14 @@ async def check_http_headers(url: str) -> dict:
             for header, info in security_headers.items():
                 if header in headers:
                     results["headers_analysis"][header] = {
-                        "status": "✓ 存在",
+                        "status": "present",
                         "value": headers[header],
                         "description": info["description"],
                     }
                     present_count += 1
                 else:
                     results["headers_analysis"][header] = {
-                        "status": "✗ 缺失",
+                        "status": "missing",
                         "description": info["description"],
                         "recommendation": info["recommendation"],
                     }
@@ -96,12 +99,19 @@ async def check_http_headers(url: str) -> dict:
 
 
 async def query_dns(domain: str, record_type: str = "A") -> dict:
-    """DNS 记录查询"""
+    """DNS 记录查询 — v2.0: 缓存"""
     domain = validate_domain(domain)
 
     valid_types = ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "ALL"]
     if record_type.upper() not in valid_types:
         raise ValueError(f"无效的记录类型: {record_type}（支持: {', '.join(valid_types)}）")
+
+    # 缓存
+    cache = get_cache()
+    cache_key = f"{domain}:{record_type}"
+    cached = cache.get("dns_lookup", cache_key)
+    if cached is not None:
+        return cached
 
     results = {"domain": domain, "records": {}}
 
@@ -136,14 +146,20 @@ async def query_dns(domain: str, record_type: str = "A") -> dict:
         except Exception as e:
             results["records"][rtype] = {"status": "error", "error": str(e)}
 
+    cache.set("dns_lookup", cache_key, results, ttl=300)
     return results
 
 
 async def geolocate_ip(ip: str) -> dict:
-    """IP 地理位置查询"""
+    """IP 地理位置查询 — v2.0: 缓存"""
     ip = validate_ip(ip)
 
-    # 不阻止私有 IP 查询，但给出提示
+    # 缓存
+    cache = get_cache()
+    cached = cache.get("ip_geolocation", ip)
+    if cached is not None:
+        return cached
+
     private_warning = None
     if is_private_ip(ip):
         private_warning = f"注意: {ip} 是私有/内网 IP，可能无法获取地理位置信息"
@@ -174,6 +190,8 @@ async def geolocate_ip(ip: str) -> dict:
                 }
                 if private_warning:
                     result["warning"] = private_warning
+
+                cache.set("ip_geolocation", ip, result, ttl=86400)
                 return result
             else:
                 return {"error": data.get("message", "查询失败"), "ip": ip}
