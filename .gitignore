@@ -19,7 +19,6 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
 # Virtual environments
 venv/
@@ -32,33 +31,20 @@ ENV/
 .idea/
 *.swp
 *.swo
+*~
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Project specific
+*.tmp
+/tmp/
+test_local.py
+test_v011.py
 
 # Logs
 *.log
-logs/
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.cache
-coverage.xml
-
-# OS
-Thumbs.db
-
-# Backup files
-*.backup
-*.bak
-
-# Build artifacts
-build/
-dist/
-*.whl
-*.tar.gz
-
-# Test outputs
-test_output/
-test_results/
+# MCP
+.claude/

@@ -8,16 +8,17 @@ Vulnerability Research MCP Server
 import asyncio
 import json
 import logging
-import subprocess
+import math
 import os
-import socket
 import re
+import subprocess
 from typing import Any
-import httpx
+
 import dns.resolver
+import httpx
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent, EmbeddedResource
+from mcp.types import EmbeddedResource, TextContent, Tool
 
 # 配置日志
 logging.basicConfig(
@@ -100,10 +101,14 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="cvss_calculator",
-            description="计算 CVSS v3.1 评分",
+            description="计算 CVSS v3.1 评分（支持完整 vector 字符串或分解参数）",
             inputSchema={
                 "type": "object",
                 "properties": {
+                    "vector": {
+                        "type": "string",
+                        "description": "完整 CVSS v3.1 vector 字符串（如：CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H），如提供此项，其他参数可不填。"
+                    },
                     "attack_vector": {
                         "type": "string",
                         "enum": ["NETWORK", "ADJACENT_NETWORK", "LOCAL", "PHYSICAL"],
@@ -145,9 +150,7 @@ async def list_tools() -> list[Tool]:
                         "description": "可用性影响（A）"
                     }
                 },
-                "required": ["attack_vector", "attack_complexity", "privileges_required", 
-                           "user_interaction", "scope", "confidentiality", 
-                           "integrity", "availability"]
+                "required": []
             }
         ),
         Tool(
@@ -327,7 +330,7 @@ async def search_cve(keyword: str, product: str = None, version: str = None, max
             "resultsPerPage": max_results
         }
         
-        response = await client.get(f"{NVD_API_BASE}/cves/2.0", params=params, timeout=30.0)
+        response = await client.get(f"{NVD_API_BASE}/cves/2.0", params=params, timeout=10.0)
         response.raise_for_status()
         data = response.json()
         
@@ -359,7 +362,7 @@ async def get_cve_details(cve_id: str) -> dict:
     """获取 CVE 详细信息"""
     async with httpx.AsyncClient() as client:
         params = {"cveId": cve_id}
-        response = await client.get(f"{NVD_API_BASE}/cves/2.0", params=params, timeout=30.0)
+        response = await client.get(f"{NVD_API_BASE}/cves/2.0", params=params, timeout=10.0)
         response.raise_for_status()
         data = response.json()
         
@@ -436,11 +439,63 @@ async def search_exploit(query: str, type_filter: str = None) -> dict:
         }
 
 async def cvss_calculator(**kwargs) -> dict:
-    """计算 CVSS v3.1 评分（简化实现）"""
-    # CVSS v3.1 评分算法简化实现
-    # 完整实现请参考：https://www.first.org/cvss/v3.1/specification-document
+    """计算 CVSS v3.1 评分（符合 FIRST 规范）"""
+    # 支持两种输入方式：
+    # 1. 完整 vector 字符串：CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+    # 2. 分开参数：attack_vector, attack_complexity, privileges_required, user_interaction, scope, confidentiality, integrity, availability
     
-    # 评分映射
+    vector = kwargs.get("vector")
+    if vector and isinstance(vector, str) and vector.startswith("CVSS:3.1/"):
+        kwargs = _parse_cvss_vector(vector)
+    elif kwargs.get("vector"):
+        return {"error": "vector 格式不正确，必须以 CVSS:3.1/ 开头"}
+    
+    # 校验必需参数
+    required = ["attack_vector", "attack_complexity", "privileges_required", "user_interaction", "scope", "confidentiality", "integrity", "availability"]
+    missing = [p for p in required if p not in kwargs or kwargs[p] is None]
+    if missing:
+        return {"error": f"缺少参数: {', '.join(missing)}。或者传入完整 vector 字符串"}
+    
+    result = _compute_cvss_v3_1(kwargs)
+    return result
+
+def _parse_cvss_vector(vector: str) -> dict:
+    """解析 CVSS v3.1 vector 字符串为参数字典"""
+    metrics = {}
+    parts = vector.replace("CVSS:3.1/", "").split("/")
+    mapping = {
+        "AV": "attack_vector",
+        "AC": "attack_complexity",
+        "PR": "privileges_required",
+        "UI": "user_interaction",
+        "S": "scope",
+        "C": "confidentiality",
+        "I": "integrity",
+        "A": "availability"
+    }
+    value_map = {
+        "attack_vector": {"N": "NETWORK", "A": "ADJACENT_NETWORK", "L": "LOCAL", "P": "PHYSICAL"},
+        "attack_complexity": {"L": "LOW", "H": "HIGH"},
+        "privileges_required": {"N": "NONE", "L": "LOW", "H": "HIGH"},
+        "user_interaction": {"N": "NONE", "R": "REQUIRED"},
+        "scope": {"U": "UNCHANGED", "C": "CHANGED"},
+        "confidentiality": {"N": "NONE", "L": "LOW", "H": "HIGH"},
+        "integrity": {"N": "NONE", "L": "LOW", "H": "HIGH"},
+        "availability": {"N": "NONE", "L": "LOW", "H": "HIGH"}
+    }
+    for part in parts:
+        if ":" not in part:
+            continue
+        metric, value = part.split(":", 1)
+        key = mapping.get(metric)
+        if key:
+            metrics[key] = value_map[key].get(value, value)
+    return metrics
+
+def _compute_cvss_v3_1(metrics: dict) -> dict:
+    """按 FIRST CVSS v3.1 规范计算基础分数"""
+    # 参考: https://www.first.org/cvss/v3.1/specification-document
+    
     av_map = {"NETWORK": 0.85, "ADJACENT_NETWORK": 0.62, "LOCAL": 0.55, "PHYSICAL": 0.2}
     ac_map = {"LOW": 0.77, "HIGH": 0.44}
     pr_map = {
@@ -451,92 +506,226 @@ async def cvss_calculator(**kwargs) -> dict:
     ui_map = {"NONE": 0.85, "REQUIRED": 0.62}
     cia_map = {"NONE": 0.0, "LOW": 0.22, "HIGH": 0.56}
     
-    # 计算基础评分
-    av = av_map.get(kwargs.get("attack_vector"), 0)
-    ac = ac_map.get(kwargs.get("attack_complexity"), 0)
-    pr = pr_map.get(kwargs.get("privileges_required"), {}).get(kwargs.get("scope"), 0)
-    ui = ui_map.get(kwargs.get("user_interaction"), 0)
+    # 获取数值
+    av = av_map.get(metrics.get("attack_vector"), 0)
+    ac = ac_map.get(metrics.get("attack_complexity"), 0)
+    pr = pr_map.get(metrics.get("privileges_required"), {}).get(metrics.get("scope"), 0)
+    ui = ui_map.get(metrics.get("user_interaction"), 0)
+    scope_changed = metrics.get("scope") == "CHANGED"
+    c = cia_map.get(metrics.get("confidentiality"), 0)
+    i = cia_map.get(metrics.get("integrity"), 0)
+    a = cia_map.get(metrics.get("availability"), 0)
     
-    c = cia_map.get(kwargs.get("confidentiality"), 0)
-    i = cia_map.get(kwargs.get("integrity"), 0)
-    a = cia_map.get(kwargs.get("availability"), 0)
+    # 1. 计算 Impact Sub-Score (ISS)
+    iss = 1 - ((1 - c) * (1 - i) * (1 - a))
     
-    # 简化计算（完整实现需要更多逻辑）
-    base_score = av * ac * pr * ui  # 这是简化版本
-    
-    # 确定严重等级
-    if base_score >= 9.0:
-        severity = "CRITICAL"
-    elif base_score >= 7.0:
-        severity = "HIGH"
-    elif base_score >= 4.0:
-        severity = "MEDIUM"
-    elif base_score > 0:
-        severity = "LOW"
+    # 2. 计算 Impact
+    if scope_changed:
+        impact = 7.52 * (iss - 0.029) - 3.25 * (iss - 0.02) ** 15
     else:
+        impact = 6.42 * iss
+    
+    # 3. 计算 Exploitability
+    exploitability = 8.22 * av * ac * pr * ui
+    
+    # 4. 计算 Base Score
+    if impact <= 0:
+        base_score = 0.0
+    else:
+        if scope_changed:
+            base_score = min(1.08 * (impact + exploitability), 10)
+        else:
+            base_score = min(impact + exploitability, 10)
+    
+    # 5. 向上取整到小数点后一位
+    base_score = round_up(base_score, 1)
+    
+    # 6. 严重等级
+    if base_score == 0.0:
         severity = "NONE"
+    elif base_score < 4.0:
+        severity = "LOW"
+    elif base_score < 7.0:
+        severity = "MEDIUM"
+    elif base_score < 9.0:
+        severity = "HIGH"
+    else:
+        severity = "CRITICAL"
+    
+    # 生成标准 vector 字符串
+    vector = (
+        f"CVSS:3.1/AV:{metrics.get('attack_vector')[0]}/"
+        f"AC:{metrics.get('attack_complexity')[0]}/"
+        f"PR:{metrics.get('privileges_required')[0]}/"
+        f"UI:{metrics.get('user_interaction')[0]}/"
+        f"S:{metrics.get('scope')[0]}/"
+        f"C:{metrics.get('confidentiality')[0]}/"
+        f"I:{metrics.get('integrity')[0]}/"
+        f"A:{metrics.get('availability')[0]}"
+    )
     
     return {
-        "base_score": round(base_score, 1),
+        "base_score": base_score,
         "severity": severity,
-        "vector": {
-            "AV": kwargs.get("attack_vector")[0],
-            "AC": kwargs.get("attack_complexity")[0],
-            "PR": kwargs.get("privileges_required")[0],
-            "UI": kwargs.get("user_interaction")[0],
-            "S": kwargs.get("scope")[0],
-            "C": kwargs.get("confidentiality")[0],
-            "I": kwargs.get("integrity")[0],
-            "A": kwargs.get("availability")[0]
+        "impact": round(impact, 3),
+        "exploitability": round(exploitability, 3),
+        "vector": vector,
+        "metrics": {
+            "AV": metrics.get("attack_vector"),
+            "AC": metrics.get("attack_complexity"),
+            "PR": metrics.get("privileges_required"),
+            "UI": metrics.get("user_interaction"),
+            "S": metrics.get("scope"),
+            "C": metrics.get("confidentiality"),
+            "I": metrics.get("integrity"),
+            "A": metrics.get("availability")
         },
-        "note": "这是简化实现，完整实现请参考 CVSS v3.1 规范"
+        "note": "基于 FIRST CVSS v3.1 规范计算（完整 Base Score 算法）"
     }
 
+def round_up(value: float, precision: int) -> float:
+    """按 CVSS 规范向上取整"""
+    multiplier = 10 ** precision
+    return math.ceil(value * multiplier - 0.0000005) / multiplier
+
 async def cwe_mapping(cwe_id: str) -> dict:
-    """查询 CWE 信息（简化实现）"""
-    # 简化实现：返回常见 CWE 信息
-    # 完整实现应该调用 MITRE CWE API 或本地数据库
+    """查询 CWE 信息（本地常见漏洞类型库）"""
+    normalized = cwe_id.strip().upper()
+    
+    # CWE ID 格式校验
+    if not re.match(r"^CWE-\d{1,6}$", normalized):
+        return {
+            "error": "CWE ID 格式不正确",
+            "expected": "CWE-XX 格式（如 CWE-89、CWE-079）",
+            "received": cwe_id
+        }
+    
+    cwe_number = int(normalized.split("-", 1)[1])
     
     common_cwe = {
-        "CWE-79": {
+        22: {
+            "name": "Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')",
+            "weakness_type": "Base",
+            "status": "Draft",
+            "description": "The software uses external input to construct a pathname that is intended to identify a file or directory that is located underneath a restricted parent directory, but the software does not properly neutralize special elements within the pathname that can cause the pathname to resolve to a location that is outside of the restricted directory."
+        },
+        79: {
             "name": "Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')",
             "weakness_type": "Class",
             "status": "Incomplete",
             "description": "The software does not neutralize or incorrectly neutralizes user-controllable input before it is placed in output that is used as a web page."
         },
-        "CWE-89": {
+        89: {
             "name": "Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')",
             "weakness_type": "Class",
             "status": "Draft",
             "description": "The software constructs all or part of an SQL command using externally-influenced input, but it does not neutralize or incorrectly neutralizes special elements."
         },
-        "CWE-287": {
+        94: {
+            "name": "Improper Control of Generation of Code ('Code Injection')",
+            "weakness_type": "Class",
+            "status": "Incomplete",
+            "description": "The software constructs all or part of a code segment using externally-influenced input from an upstream component, but it does not neutralize or incorrectly neutralizes special elements that could modify the syntax or behavior of the intended code segment."
+        },
+        200: {
+            "name": "Exposure of Sensitive Information to an Unauthorized Actor",
+            "weakness_type": "Class",
+            "status": "Stable",
+            "description": "The product exposes sensitive information to an actor that is not explicitly authorized to have access to that information."
+        },
+        287: {
             "name": "Improper Authentication",
             "weakness_type": "Class",
             "status": "Draft",
             "description": "When an actor claims to have a given identity, the software does not prove or insufficiently proves that the claim is correct."
         },
-        "CWE-352": {
+        306: {
+            "name": "Missing Authentication for Critical Function",
+            "weakness_type": "Base",
+            "status": "Draft",
+            "description": "The product does not perform any authentication for functionality that requires a provable user identity or consumes a significant amount of resources."
+        },
+        311: {
+            "name": "Missing Encryption of Sensitive Data",
+            "weakness_type": "Base",
+            "status": "Draft",
+            "description": "The product does not encrypt sensitive or critical information before storage or transmission."
+        },
+        319: {
+            "name": "Cleartext Transmission of Sensitive Information",
+            "weakness_type": "Base",
+            "status": "Draft",
+            "description": "The product transmits sensitive or security-critical data in cleartext in a communication channel that can be sniffed by unauthorized actors."
+        },
+        352: {
             "name": "Cross-Site Request Forgery (CSRF)",
             "weakness_type": "Compound",
             "status": "Incomplete",
             "description": "The web application does not, or can not, sufficiently verify whether a well-formed, valid, consistent request was intentionally provided by the user who submitted the request."
         },
-        "CWE-434": {
+        434: {
             "name": "Unrestricted File Upload with Dangerous Type",
             "weakness_type": "Base",
             "status": "Draft",
             "description": "The application allows the attacker to upload or transfer files of dangerous types that can be automatically processed within the product's environment."
+        },
+        502: {
+            "name": "Deserialization of Untrusted Data",
+            "weakness_type": "Class",
+            "status": "Incomplete",
+            "description": "The product deserializes untrusted data without sufficiently verifying that the resulting data will be valid."
+        },
+        522: {
+            "name": "Insufficiently Protected Credentials",
+            "weakness_type": "Base",
+            "status": "Draft",
+            "description": "The product transmits or stores authentication credentials, but uses an insecure method that is susceptible to unauthorized interception and/or retrieval."
+        },
+        732: {
+            "name": "Incorrect Permission Assignment for Critical Resource",
+            "weakness_type": "Base",
+            "status": "Draft",
+            "description": "The product specifies permissions for a security-critical resource in a way that allows that resource to be read or modified by unintended actors."
+        },
+        798: {
+            "name": "Use of Hard-coded Credentials",
+            "weakness_type": "Base",
+            "status": "Draft",
+            "description": "The product contains hard-coded credentials, such as a password or cryptographic key, which it uses for its own inbound authentication, outbound communication to external components, or encryption of internal data."
+        },
+        918: {
+            "name": "Server-Side Request Forgery (SSRF)",
+            "weakness_type": "Base",
+            "status": "Draft",
+            "description": "The web server receives a URL or similar request from an upstream component, but the server does not sufficiently ensure that the request is being sent to the expected destination."
+        },
+        1035: {
+            "name": "Insufficient Authorization of DNS Query by Source Port Randomization",
+            "weakness_type": "Base",
+            "status": "Draft",
+            "description": "A device uses an insufficient source port randomization algorithm for DNS queries, making DNS spoofing more likely."
+        },
+        1174: {
+            "name": "Improper Validation of Integrity Check Value",
+            "weakness_type": "Base",
+            "status": "Draft",
+            "description": "The product does not validate or incorrectly validates the integrity check values."
         }
     }
     
-    if cwe_id in common_cwe:
-        return common_cwe[cwe_id]
+    if cwe_number in common_cwe:
+        data = common_cwe[cwe_number].copy()
+        data["cwe_id"] = normalized
+        data["mitre_url"] = f"https://cwe.mitre.org/data/definitions/{cwe_number}.html"
+        data["source"] = "vuln-research-mcp local database"
+        return data
     else:
         return {
-            "note": f"CWE {cwe_id} 详细信息需要查询 MITRE CWE 数据库",
-            "url": f"https://cwe.mitre.org/data/definitions/{cwe_id.split('-')[1]}.html",
-            "suggestion": "考虑下载完整 CWE 数据库: https://cwe.mitre.org/data/downloads.html"
+            "cwe_id": normalized,
+            "found": False,
+            "note": f"本地数据库未收录 {normalized}。",
+            "mitre_url": f"https://cwe.mitre.org/data/definitions/{cwe_number}.html",
+            "suggestion": "可访问 MITRE CWE 官方数据库获取完整信息。"
         }
 
 async def find_nuclei_template(tags: str, severity: str = None) -> dict:
